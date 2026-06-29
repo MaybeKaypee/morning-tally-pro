@@ -22,6 +22,7 @@ export type Database = {
           id: string
           late_count: number
           on_time_count: number
+          updated_at: string
         }
         Insert: {
           attendance_date?: string
@@ -30,6 +31,7 @@ export type Database = {
           id?: string
           late_count: number
           on_time_count: number
+          updated_at?: string
         }
         Update: {
           attendance_date?: string
@@ -38,6 +40,7 @@ export type Database = {
           id?: string
           late_count?: number
           on_time_count?: number
+          updated_at?: string
         }
         Relationships: [
           {
@@ -48,6 +51,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      attendance_history: {
+        Row: {
+          action: string
+          attendance_date: string
+          attendance_id: string | null
+          changed_at: string
+          classroom_id: string
+          id: string
+          late_count: number
+          on_time_count: number
+        }
+        Insert: {
+          action: string
+          attendance_date: string
+          attendance_id?: string | null
+          changed_at?: string
+          classroom_id: string
+          id?: string
+          late_count: number
+          on_time_count: number
+        }
+        Update: {
+          action?: string
+          attendance_date?: string
+          attendance_id?: string | null
+          changed_at?: string
+          classroom_id?: string
+          id?: string
+          late_count?: number
+          on_time_count?: number
+        }
+        Relationships: []
       }
       classrooms: {
         Row: {
