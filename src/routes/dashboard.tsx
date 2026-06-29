@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Trophy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { classroomCompare } from "@/lib/sort";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -121,7 +122,8 @@ function Dashboard() {
       })
       .sort((a, b) => {
         if (a.submitted !== b.submitted) return a.submitted ? -1 : 1;
-        return b.pct - a.pct;
+        if (a.submitted) return b.pct - a.pct;
+        return classroomCompare(a.name, b.name);
       });
   }, [filtered, classrooms, range]);
 
