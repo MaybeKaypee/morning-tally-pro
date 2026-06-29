@@ -14,7 +14,7 @@ export const Route = createFileRoute("/")({
   component: AttendanceForm,
 });
 
-type Classroom = { id: string; classroom_name: string; total_students: number };
+type Classroom = { id: string; classroom_name: string };
 
 function todayISO() {
   const d = new Date();
@@ -26,7 +26,7 @@ function AttendanceForm() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [classroomId, setClassroomId] = useState("");
   const [onTime, setOnTime] = useState("");
-  const [late, setLate] = useState("");
+  const [total, setTotal] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -34,7 +34,7 @@ function AttendanceForm() {
   useEffect(() => {
     supabase
       .from("classrooms")
-      .select("id, classroom_name, total_students")
+      .select("id, classroom_name")
       .eq("active", true)
       .order("classroom_name")
       .then(({ data, error }) => {
@@ -49,13 +49,12 @@ function AttendanceForm() {
     setSuccess(false);
     if (!classroomId) return toast.error("Please choose a classroom.");
     const o = Number(onTime);
-    const l = Number(late);
-    if (!Number.isInteger(o) || o < 0 || !Number.isInteger(l) || l < 0) {
+    const t = Number(total);
+    if (!Number.isInteger(o) || o < 0 || !Number.isInteger(t) || t < 0) {
       return toast.error("Counts must be non-negative whole numbers.");
     }
-    const classroom = classrooms.find((c) => c.id === classroomId);
-    if (classroom && o + l > classroom.total_students) {
-      return toast.error(`Total exceeds classroom size (${classroom.total_students}).`);
+    if (o > t) {
+      return toast.error("Before 07:20 cannot exceed total present.");
     }
 
     setSubmitting(true);
@@ -66,7 +65,7 @@ function AttendanceForm() {
           classroom_id: classroomId,
           attendance_date: todayISO(),
           on_time_count: o,
-          late_count: l,
+          late_count: t - o,
         },
         { onConflict: "classroom_id,attendance_date" },
       );
@@ -75,7 +74,7 @@ function AttendanceForm() {
     toast.success("Attendance saved for today.");
     setSuccess(true);
     setOnTime("");
-    setLate("");
+    setTotal("");
     setClassroomId("");
   }
 
@@ -114,13 +113,13 @@ function AttendanceForm() {
             <option value="">{loading ? "Loading…" : "Select classroom"}</option>
             {classrooms.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.classroom_name} ({c.total_students} students)
+                {c.classroom_name}
               </option>
             ))}
           </select>
         </Field>
 
-        <Field label="Arrived before 07:20">
+        <Field label="Students arrived before 07:20">
           <input
             type="number" min={0} step={1} inputMode="numeric"
             value={onTime} onChange={(e) => setOnTime(e.target.value)} required
@@ -128,10 +127,10 @@ function AttendanceForm() {
           />
         </Field>
 
-        <Field label="Arrived between 07:20 – 08:20">
+        <Field label="Students arrived between 07:20 – 08:20 (total present, including those before 07:20)">
           <input
             type="number" min={0} step={1} inputMode="numeric"
-            value={late} onChange={(e) => setLate(e.target.value)} required
+            value={total} onChange={(e) => setTotal(e.target.value)} required
             className="h-12 w-full rounded-xl border bg-background px-3 text-base outline-none focus:ring-2 focus:ring-primary"
           />
         </Field>
