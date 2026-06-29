@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { classroomCompare } from "@/lib/sort";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -36,36 +37,82 @@ function AttendanceForm() {
       .from("classrooms")
       .select("id, classroom_name")
       .eq("active", true)
-      .order("classroom_name")
       .then(({ data, error }) => {
         if (error) toast.error(error.message);
-        else setClassrooms(data ?? []);
+        else setClassrooms((data ?? []).sort((a, b) => classroomCompare(a.classroom_name, b.classroom_name)));
         setLoading(false);
       });
   }, []);
+
+  // Load existing today's record when classroom changes, so partial edits merge.
+  useEffect(() => {
+    if (!classroomId) { setOnTime(""); setTotal(""); return; }
+    supabase
+      .from("attendance")
+      .select("on_time_count, late_count")
+      .eq("classroom_id", classroomId)
+      .eq("attendance_date", todayISO())
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setOnTime(String(data.on_time_count));
+          setTotal(String(data.on_time_count + data.late_count));
+        } else {
+          setOnTime(""); setTotal("");
+        }
+      });
+  }, [classroomId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSuccess(false);
     if (!classroomId) return toast.error("Please choose a classroom.");
-    const o = Number(onTime);
-    const t = Number(total);
-    if (!Number.isInteger(o) || o < 0 || !Number.isInteger(t) || t < 0) {
-      return toast.error("Counts must be non-negative whole numbers.");
+
+    const onTimeProvided = onTime.trim() !== "";
+    const totalProvided = total.trim() !== "";
+    if (!onTimeProvided && !totalProvided) {
+      return toast.error("Enter at least one number to save.");
     }
-    if (o > t) {
-      return toast.error("Before 07:20 cannot exceed total present.");
+
+    const o = onTimeProvided ? Number(onTime) : NaN;
+    const t = totalProvided ? Number(total) : NaN;
+    if (onTimeProvided && (!Number.isInteger(o) || o < 0)) {
+      return toast.error("Before 07:20 must be a non-negative whole number.");
+    }
+    if (totalProvided && (!Number.isInteger(t) || t < 0)) {
+      return toast.error("Total present must be a non-negative whole number.");
     }
 
     setSubmitting(true);
+
+    // Merge with any existing record for today so each field can be submitted separately.
+    const { data: existing } = await supabase
+      .from("attendance")
+      .select("on_time_count, late_count")
+      .eq("classroom_id", classroomId)
+      .eq("attendance_date", todayISO())
+      .maybeSingle();
+
+    const prevOn = existing?.on_time_count ?? 0;
+    const prevLate = existing?.late_count ?? 0;
+    const prevTotal = prevOn + prevLate;
+
+    const nextOn = onTimeProvided ? o : prevOn;
+    const nextTotal = totalProvided ? t : prevTotal;
+
+    if (nextOn > nextTotal) {
+      setSubmitting(false);
+      return toast.error("Before 07:20 cannot exceed total present.");
+    }
+
     const { error } = await supabase
       .from("attendance")
       .upsert(
         {
           classroom_id: classroomId,
           attendance_date: todayISO(),
-          on_time_count: o,
-          late_count: t - o,
+          on_time_count: nextOn,
+          late_count: nextTotal - nextOn,
         },
         { onConflict: "classroom_id,attendance_date" },
       );
@@ -73,9 +120,6 @@ function AttendanceForm() {
     if (error) return toast.error(error.message);
     toast.success("Attendance saved for today.");
     setSuccess(true);
-    setOnTime("");
-    setTotal("");
-    setClassroomId("");
   }
 
   return (
@@ -119,18 +163,18 @@ function AttendanceForm() {
           </select>
         </Field>
 
-        <Field label="Students arrived before 07:20">
+        <Field label="Students arrived before 07:20 (optional)">
           <input
             type="number" min={0} step={1} inputMode="numeric"
-            value={onTime} onChange={(e) => setOnTime(e.target.value)} required
+            value={onTime} onChange={(e) => setOnTime(e.target.value)}
             className="h-12 w-full rounded-xl border bg-background px-3 text-base outline-none focus:ring-2 focus:ring-primary"
           />
         </Field>
 
-        <Field label="Students arrived between 07:20 – 08:20 (total present, including those before 07:20)">
+        <Field label="Students arrived between 07:20 – 08:20 (total present, optional)">
           <input
             type="number" min={0} step={1} inputMode="numeric"
-            value={total} onChange={(e) => setTotal(e.target.value)} required
+            value={total} onChange={(e) => setTotal(e.target.value)}
             className="h-12 w-full rounded-xl border bg-background px-3 text-base outline-none focus:ring-2 focus:ring-primary"
           />
         </Field>
@@ -144,7 +188,7 @@ function AttendanceForm() {
         </button>
 
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          One submission per classroom per day. Re-submitting updates today's record.
+          You can submit either field separately and come back later. Re-submitting updates today's record.
         </p>
       </form>
     </main>
