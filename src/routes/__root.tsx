@@ -8,8 +8,6 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { Toaster } from "sonner";
-import { Header } from "../components/Header";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -79,13 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Morning Attendance" },
-      { name: "description", content: "Record and track student morning attendance across classrooms." },
-      { name: "author", content: "School" },
-      { property: "og:title", content: "Morning Attendance" },
-      { property: "og:description", content: "Record and track student morning attendance across classrooms." },
+      { title: "Lovable App" },
+      { name: "description", content: "Morning Roll Call is a web app for teachers to record student attendance and view class performance." },
+      { name: "author", content: "Lovable" },
+      { property: "og:title", content: "Lovable App" },
+      { property: "og:description", content: "Morning Roll Call is a web app for teachers to record student attendance and view class performance." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Lovable App" },
+      { name: "twitter:description", content: "Morning Roll Call is a web app for teachers to record student attendance and view class performance." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e401f29b-38ad-49f0-892c-bade43f09fa5/id-preview-c7db8896--509a3a95-30bf-417e-8558-0d51d138a892.lovable.app-1782704736590.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e401f29b-38ad-49f0-892c-bade43f09fa5/id-preview-c7db8896--509a3a95-30bf-417e-8558-0d51d138a892.lovable.app-1782704736590.png" },
     ],
     links: [
       {
@@ -119,11 +122,8 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-background">
-        <Header />
-        <Outlet />
-      </div>
-      <Toaster richColors position="top-center" />
+      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      <Outlet />
     </QueryClientProvider>
   );
 }
