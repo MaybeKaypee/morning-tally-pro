@@ -163,7 +163,7 @@ function AttendanceForm() {
           </select>
         </Field>
 
-        <Field label="Students arrived before 07:20 (optional)">
+        <Field label="Students at 07:20">
           <input
             type="number" min={0} step={1} inputMode="numeric"
             value={onTime} onChange={(e) => setOnTime(e.target.value)}
@@ -171,7 +171,7 @@ function AttendanceForm() {
           />
         </Field>
 
-        <Field label="Students arrived between 07:20 – 08:20 (total present, optional)">
+        <Field label="Students at 08:20">
           <input
             type="number" min={0} step={1} inputMode="numeric"
             value={total} onChange={(e) => setTotal(e.target.value)}
