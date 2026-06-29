@@ -1,0 +1,1 @@
+ALTER TABLE public.classrooms ALTER COLUMN total_students SET DEFAULT 0;

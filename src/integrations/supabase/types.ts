@@ -62,7 +62,7 @@ export type Database = {
           classroom_name: string
           created_at?: string
           id?: string
-          total_students: number
+          total_students?: number
         }
         Update: {
           active?: boolean
