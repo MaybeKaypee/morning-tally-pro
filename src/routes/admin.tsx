@@ -250,6 +250,12 @@ function ResponsesPanel() {
 
   return (
     <>
+      <div className="mb-3 flex justify-end">
+        <button onClick={() => setCreating(true)}
+          className="flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          <Plus className="h-4 w-4" /> Add response
+        </button>
+      </div>
       <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -294,7 +300,90 @@ function ResponsesPanel() {
       {editing && (
         <ResponseDialog row={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />
       )}
+      {creating && (
+        <NewResponseDialog classrooms={classrooms} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); refresh(); }} />
+      )}
     </>
+  );
+}
+
+function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Classroom[]; onClose: () => void; onSaved: () => void }) {
+  const sorted = useMemo(
+    () => [...classrooms].sort((a, b) => classroomCompare(a.classroom_name, b.classroom_name)),
+    [classrooms],
+  );
+  const [classroomId, setClassroomId] = useState(sorted[0]?.id ?? "");
+  const today = new Date();
+  const tz = today.getTimezoneOffset() * 60000;
+  const [date, setDate] = useState(new Date(today.getTime() - tz).toISOString().slice(0, 10));
+  const [onTime, setOnTime] = useState("");
+  const [late, setLate] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!classroomId) return toast.error("Pick a classroom.");
+    if (!date) return toast.error("Pick a date.");
+    const o = onTime === "" ? 0 : Number(onTime);
+    const l = late === "" ? 0 : Number(late);
+    if (!Number.isInteger(o) || o < 0 || !Number.isInteger(l) || l < 0) {
+      return toast.error("Counts must be non-negative whole numbers.");
+    }
+    const total = Math.max(l, o);
+    setBusy(true);
+    const { data: existing } = await supabase.from("attendance")
+      .select("id, on_time_count, late_count")
+      .eq("classroom_id", classroomId).eq("attendance_date", date).maybeSingle();
+    if (existing && (existing.on_time_count !== o || existing.late_count !== total)) {
+      if (!confirm(`A response already exists for this classroom on ${date}. Overwrite it?`)) {
+        setBusy(false); return;
+      }
+    }
+    const { error } = await supabase.from("attendance").upsert(
+      { classroom_id: classroomId, attendance_date: date, on_time_count: o, late_count: total },
+      { onConflict: "classroom_id,attendance_date" },
+    );
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Response saved.");
+    onSaved();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/30 p-4 sm:items-center">
+      <form onSubmit={save} className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl sm:p-6">
+        <h2 className="text-lg font-semibold">Add response</h2>
+        <label className="mt-4 mb-3 block">
+          <span className="mb-1.5 block text-sm font-medium">Classroom</span>
+          <select value={classroomId} onChange={(e) => setClassroomId(e.target.value)} required
+            className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary">
+            {sorted.map((c) => <option key={c.id} value={c.id}>{c.classroom_name}</option>)}
+          </select>
+        </label>
+        <label className="mb-3 block">
+          <span className="mb-1.5 block text-sm font-medium">Date</span>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required
+            className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
+        </label>
+        <label className="mb-3 block">
+          <span className="mb-1.5 block text-sm font-medium">Before 07:20</span>
+          <input type="number" min={0} step={1} value={onTime} onChange={(e) => setOnTime(e.target.value)}
+            className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
+        </label>
+        <label className="mb-4 block">
+          <span className="mb-1.5 block text-sm font-medium">Total present (07:20–08:20, incl. before)</span>
+          <input type="number" min={0} step={1} value={late} onChange={(e) => setLate(e.target.value)}
+            className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
+        </label>
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="h-10 rounded-xl border px-4 text-sm hover:bg-accent">Cancel</button>
+          <button type="submit" disabled={busy} className="flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
