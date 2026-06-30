@@ -102,7 +102,7 @@ function Dashboard() {
 
   // Expected weekdays (Mon-Fri) inside the selected range, capped at today.
   const expectedDates = useMemo(() => {
-    if (range !== "week" && range !== "month") return [] as string[];
+    if (range !== "week") return [] as string[];
     const today = todayISO();
     const start = new Date(from + "T00:00");
     const endStr = to < today ? to : today;
