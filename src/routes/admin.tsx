@@ -122,11 +122,8 @@ function ClassroomsPanel() {
   }
   useEffect(() => { refresh(); }, []);
 
-  async function toggleActive(c: Classroom) {
-    const { error } = await supabase.from("classrooms").update({ active: !c.active }).eq("id", c.id);
-    if (error) return toast.error(error.message);
-    refresh();
-  }
+
+
   async function remove(c: Classroom) {
     if (!confirm(`Delete "${c.classroom_name}"? This also deletes its attendance history.`)) return;
     const { error } = await supabase.from("classrooms").delete().eq("id", c.id);
