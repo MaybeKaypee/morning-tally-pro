@@ -149,26 +149,17 @@ function ClassroomsPanel() {
             <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Classroom</th>
-                <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
+                <tr><td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No classrooms.</td></tr>
+                <tr><td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">No classrooms.</td></tr>
               ) : rows.map((c) => (
                 <tr key={c.id} className="border-t">
                   <td className="px-4 py-3 font-medium">{c.classroom_name}</td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => toggleActive(c)} className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${
-                      c.active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                    }`}>
-                      <span className={`h-2 w-2 rounded-full ${c.active ? "bg-primary" : "bg-muted-foreground"}`} />
-                      {c.active ? "Active" : "Disabled"}
-                    </button>
-                  </td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-1">
                       <button onClick={() => { setEditing(c); setShowForm(true); }} className="rounded-lg p-2 hover:bg-accent" title="Edit"><Pencil className="h-4 w-4" /></button>
@@ -187,6 +178,7 @@ function ClassroomsPanel() {
     </>
   );
 }
+
 
 function ClassroomDialog({ initial, onClose, onSaved }: { initial: Classroom | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(initial?.classroom_name ?? "");
