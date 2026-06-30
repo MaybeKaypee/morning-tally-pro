@@ -199,7 +199,7 @@ function AttendanceForm() {
         </button>
 
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          You can submit either field separately and come back later. Re-submitting updates today's record.
+          You can submit either field separately. Re-submitting updates today's record.
         </p>
       </form>
     </main>
