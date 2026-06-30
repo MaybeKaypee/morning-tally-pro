@@ -98,11 +98,21 @@ function AttendanceForm() {
     const prevTotal = prevOn + prevLate;
 
     const nextOn = onTimeProvided ? o : prevOn;
-    const nextTotal = totalProvided ? t : prevTotal;
+    // If only the early count is provided, lift the total to at least that count
+    // so partial submissions are accepted before the total is entered.
+    const nextTotal = totalProvided ? t : Math.max(prevTotal, nextOn);
 
     if (nextOn > nextTotal) {
       setSubmitting(false);
       return toast.error("Before 07:20 cannot exceed total present.");
+    }
+
+    // Confirm overwrite if existing values differ from what we're about to save.
+    if (existing && (existing.on_time_count !== nextOn || existing.late_count !== nextTotal - nextOn)) {
+      const ok = window.confirm(
+        `Today's record already exists for this classroom (before 07:20: ${existing.on_time_count}, total: ${existing.on_time_count + existing.late_count}). Overwrite with new values?`,
+      );
+      if (!ok) { setSubmitting(false); return; }
     }
 
     const { error } = await supabase
@@ -121,6 +131,7 @@ function AttendanceForm() {
     toast.success("Attendance saved for today.");
     setSuccess(true);
   }
+
 
   return (
     <main className="mx-auto max-w-lg px-4 py-8 sm:py-12">
