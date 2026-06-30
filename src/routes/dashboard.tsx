@@ -244,7 +244,22 @@ function Dashboard() {
                       {r.submitted && i === 0 ? <Trophy className="h-3.5 w-3.5" /> : r.submitted ? i + 1 : "—"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-medium">{r.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <div className="flex items-center gap-2">
+                      <span>{r.name}</span>
+                      {r.missing.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => alert(`${r.name} missing submissions on:\n\n${r.missing.join("\n")}`)}
+                          title={`Missing ${r.missing.length} day(s) — click for dates`}
+                          className="inline-flex items-center text-amber-600 hover:text-amber-700"
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+
                   <td className="px-4 py-3 text-right font-semibold text-primary">
                     {r.submitted ? `${r.pct.toFixed(1)}%` : <span className="text-muted-foreground font-normal">—</span>}
                   </td>
