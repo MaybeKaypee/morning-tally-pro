@@ -179,16 +179,15 @@ function ClassroomsPanel() {
 
 function ClassroomDialog({ initial, onClose, onSaved }: { initial: Classroom | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(initial?.classroom_name ?? "");
-  const [active, setActive] = useState(initial?.active ?? true);
   const [busy, setBusy] = useState(false);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return toast.error("Name is required.");
     setBusy(true);
-    const payload = { classroom_name: name.trim(), active };
+    const payload = { classroom_name: name.trim(), active: true };
     const { error } = initial
-      ? await supabase.from("classrooms").update(payload).eq("id", initial.id)
+      ? await supabase.from("classrooms").update({ classroom_name: name.trim() }).eq("id", initial.id)
       : await supabase.from("classrooms").insert(payload);
     setBusy(false);
     if (error) return toast.error(error.message);
@@ -200,14 +199,10 @@ function ClassroomDialog({ initial, onClose, onSaved }: { initial: Classroom | n
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/30 p-4 sm:items-center">
       <form onSubmit={save} className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl sm:p-6">
         <h2 className="text-lg font-semibold">{initial ? "Edit classroom" : "Add classroom"}</h2>
-        <label className="mt-4 mb-3 block">
+        <label className="mt-4 mb-4 block">
           <span className="mb-1.5 block text-sm font-medium">Name</span>
           <input value={name} onChange={(e) => setName(e.target.value)} required
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
-        </label>
-        <label className="mb-4 flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4" />
-          Active (visible on attendance form)
         </label>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="h-10 rounded-xl border px-4 text-sm hover:bg-accent">Cancel</button>
@@ -220,6 +215,7 @@ function ClassroomDialog({ initial, onClose, onSaved }: { initial: Classroom | n
     </div>
   );
 }
+
 
 /* -------- Responses -------- */
 
