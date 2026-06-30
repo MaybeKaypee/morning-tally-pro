@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus, Trash2, LogOut, History, ListChecks, School } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, LogOut, History, ListChecks, School, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
 
@@ -122,11 +122,8 @@ function ClassroomsPanel() {
   }
   useEffect(() => { refresh(); }, []);
 
-  async function toggleActive(c: Classroom) {
-    const { error } = await supabase.from("classrooms").update({ active: !c.active }).eq("id", c.id);
-    if (error) return toast.error(error.message);
-    refresh();
-  }
+
+
   async function remove(c: Classroom) {
     if (!confirm(`Delete "${c.classroom_name}"? This also deletes its attendance history.`)) return;
     const { error } = await supabase.from("classrooms").delete().eq("id", c.id);
@@ -149,26 +146,17 @@ function ClassroomsPanel() {
             <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Classroom</th>
-                <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
+                <tr><td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No classrooms.</td></tr>
+                <tr><td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">No classrooms.</td></tr>
               ) : rows.map((c) => (
                 <tr key={c.id} className="border-t">
                   <td className="px-4 py-3 font-medium">{c.classroom_name}</td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => toggleActive(c)} className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${
-                      c.active ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                    }`}>
-                      <span className={`h-2 w-2 rounded-full ${c.active ? "bg-primary" : "bg-muted-foreground"}`} />
-                      {c.active ? "Active" : "Disabled"}
-                    </button>
-                  </td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-1">
                       <button onClick={() => { setEditing(c); setShowForm(true); }} className="rounded-lg p-2 hover:bg-accent" title="Edit"><Pencil className="h-4 w-4" /></button>
@@ -188,18 +176,18 @@ function ClassroomsPanel() {
   );
 }
 
+
 function ClassroomDialog({ initial, onClose, onSaved }: { initial: Classroom | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(initial?.classroom_name ?? "");
-  const [active, setActive] = useState(initial?.active ?? true);
   const [busy, setBusy] = useState(false);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return toast.error("Name is required.");
     setBusy(true);
-    const payload = { classroom_name: name.trim(), active };
+    const payload = { classroom_name: name.trim(), active: true };
     const { error } = initial
-      ? await supabase.from("classrooms").update(payload).eq("id", initial.id)
+      ? await supabase.from("classrooms").update({ classroom_name: name.trim() }).eq("id", initial.id)
       : await supabase.from("classrooms").insert(payload);
     setBusy(false);
     if (error) return toast.error(error.message);
@@ -211,14 +199,10 @@ function ClassroomDialog({ initial, onClose, onSaved }: { initial: Classroom | n
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/30 p-4 sm:items-center">
       <form onSubmit={save} className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl sm:p-6">
         <h2 className="text-lg font-semibold">{initial ? "Edit classroom" : "Add classroom"}</h2>
-        <label className="mt-4 mb-3 block">
+        <label className="mt-4 mb-4 block">
           <span className="mb-1.5 block text-sm font-medium">Name</span>
           <input value={name} onChange={(e) => setName(e.target.value)} required
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
-        </label>
-        <label className="mb-4 flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4" />
-          Active (visible on attendance form)
         </label>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="h-10 rounded-xl border px-4 text-sm hover:bg-accent">Cancel</button>
@@ -231,6 +215,7 @@ function ClassroomDialog({ initial, onClose, onSaved }: { initial: Classroom | n
     </div>
   );
 }
+
 
 /* -------- Responses -------- */
 
@@ -366,19 +351,36 @@ function HistoryPanel() {
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      const [cr, hr] = await Promise.all([
-        supabase.from("classrooms").select("id, classroom_name, active"),
-        supabase.from("attendance_history").select("*").order("changed_at", { ascending: false }).limit(500),
-      ]);
-      setClassrooms(cr.data ?? []);
-      setRows(hr.data ?? []);
-      setLoading(false);
-    })();
-  }, []);
+  async function refresh() {
+    setLoading(true);
+    const [cr, hr] = await Promise.all([
+      supabase.from("classrooms").select("id, classroom_name, active"),
+      supabase.from("attendance_history").select("*").order("changed_at", { ascending: false }).limit(500),
+    ]);
+    setClassrooms(cr.data ?? []);
+    setRows(hr.data ?? []);
+    setLoading(false);
+  }
+  useEffect(() => { refresh(); }, []);
 
   const nameById = useMemo(() => Object.fromEntries(classrooms.map((c) => [c.id, c.classroom_name])), [classrooms]);
+
+  async function revert(r: HistoryRow) {
+    const name = nameById[r.classroom_id] ?? "this classroom";
+    if (!confirm(`Revert ${name} on ${r.attendance_date} to: before 07:20 = ${r.on_time_count}, 07:20–08:20 = ${r.late_count}?`)) return;
+    const { error } = await supabase.from("attendance").upsert(
+      {
+        classroom_id: r.classroom_id,
+        attendance_date: r.attendance_date,
+        on_time_count: r.on_time_count,
+        late_count: r.late_count,
+      },
+      { onConflict: "classroom_id,attendance_date" },
+    );
+    if (error) return toast.error(error.message);
+    toast.success("Reverted to this version.");
+    refresh();
+  }
 
   return (
     <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -393,13 +395,14 @@ function HistoryPanel() {
               <th className="px-4 py-3 text-right">Before 07:20</th>
               <th className="px-4 py-3 text-right">07:20–08:20</th>
               <th className="px-4 py-3 text-right">Total</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">No history yet.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No history yet.</td></tr>
             ) : rows.map((r) => (
               <tr key={r.id} className="border-t">
                 <td className="px-4 py-3 text-xs text-muted-foreground">{fmt(r.changed_at)}</td>
@@ -415,6 +418,11 @@ function HistoryPanel() {
                 <td className="px-4 py-3 text-right">{r.on_time_count}</td>
                 <td className="px-4 py-3 text-right">{r.late_count}</td>
                 <td className="px-4 py-3 text-right">{r.on_time_count + r.late_count}</td>
+                <td className="px-4 py-3 text-right">
+                  <button onClick={() => revert(r)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent" title="Restore this version">
+                    <Undo2 className="h-3.5 w-3.5" /> Revert
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -423,6 +431,7 @@ function HistoryPanel() {
     </section>
   );
 }
+
 
 function fmt(ts: string) {
   const d = new Date(ts);

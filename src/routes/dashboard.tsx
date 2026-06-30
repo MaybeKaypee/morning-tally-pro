@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Trophy } from "lucide-react";
+import { Trophy, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
+
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -99,12 +100,28 @@ function Dashboard() {
     [records, from, to],
   );
 
+  // Expected weekdays (Mon-Fri) inside the selected range, capped at today.
+  const expectedDates = useMemo(() => {
+    if (range !== "week" && range !== "month") return [] as string[];
+    const today = todayISO();
+    const start = new Date(from + "T00:00");
+    const endStr = to < today ? to : today;
+    const end = new Date(endStr + "T00:00");
+    const out: string[] = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const wd = d.getDay();
+      if (wd >= 1 && wd <= 5) out.push(toISO(d));
+    }
+    return out;
+  }, [range, from, to]);
+
   const rows = useMemo(() => {
-    const byClass: Record<string, { onTime: number; total: number; pctSum: number; n: number }> = {};
+    const byClass: Record<string, { onTime: number; total: number; pctSum: number; n: number; dates: Set<string> }> = {};
     for (const r of filtered) {
       const denom = r.on_time_count + r.late_count;
+      const entry = (byClass[r.classroom_id] ||= { onTime: 0, total: 0, pctSum: 0, n: 0, dates: new Set() });
+      entry.dates.add(r.attendance_date);
       if (denom === 0) continue;
-      const entry = (byClass[r.classroom_id] ||= { onTime: 0, total: 0, pctSum: 0, n: 0 });
       entry.onTime += r.on_time_count;
       entry.total += denom;
       entry.pctSum += (r.on_time_count / denom) * 100;
@@ -117,15 +134,17 @@ function Dashboard() {
         const onTime = b?.onTime ?? 0;
         const total = b?.total ?? 0;
         const late = total - onTime;
-        const pct = b ? (range === "day" ? (total > 0 ? (onTime / total) * 100 : 0) : b.pctSum / b.n) : 0;
-        return { id: c.id, name: c.classroom_name, onTime, late, total, pct, submitted: !!b };
+        const pct = b && b.n > 0 ? (range === "day" ? (total > 0 ? (onTime / total) * 100 : 0) : b.pctSum / b.n) : 0;
+        const missing = expectedDates.filter((d) => !b?.dates.has(d));
+        return { id: c.id, name: c.classroom_name, onTime, late, total, pct, submitted: !!b && b.n > 0, missing };
       })
       .sort((a, b) => {
         if (a.submitted !== b.submitted) return a.submitted ? -1 : 1;
         if (a.submitted) return b.pct - a.pct;
         return classroomCompare(a.name, b.name);
       });
-  }, [filtered, classrooms, range]);
+  }, [filtered, classrooms, range, expectedDates]);
+
 
   const todays = useMemo(() => records.filter((r) => r.attendance_date === todayISO()), [records]);
   const summary = useMemo(() => {
@@ -225,7 +244,22 @@ function Dashboard() {
                       {r.submitted && i === 0 ? <Trophy className="h-3.5 w-3.5" /> : r.submitted ? i + 1 : "—"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-medium">{r.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <div className="flex items-center gap-2">
+                      <span>{r.name}</span>
+                      {r.missing.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => alert(`${r.name} missing submissions on:\n\n${r.missing.join("\n")}`)}
+                          title={`Missing ${r.missing.length} day(s) — click for dates`}
+                          className="inline-flex items-center text-amber-600 hover:text-amber-700"
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+
                   <td className="px-4 py-3 text-right font-semibold text-primary">
                     {r.submitted ? `${r.pct.toFixed(1)}%` : <span className="text-muted-foreground font-normal">—</span>}
                   </td>

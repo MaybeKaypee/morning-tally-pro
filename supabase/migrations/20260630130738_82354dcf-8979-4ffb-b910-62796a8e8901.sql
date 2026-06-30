@@ -1,0 +1,1 @@
+CREATE POLICY "Admins delete attendance" ON public.attendance FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'));
