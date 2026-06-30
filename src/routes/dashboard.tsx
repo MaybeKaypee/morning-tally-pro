@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Trophy } from "lucide-react";
+import { Trophy, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
+
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
