@@ -224,6 +224,7 @@ function ResponsesPanel() {
   const [rows, setRows] = useState<Attendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Attendance | null>(null);
+  const [creating, setCreating] = useState(false);
 
   async function refresh() {
     setLoading(true);
