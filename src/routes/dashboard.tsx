@@ -80,12 +80,12 @@ function Dashboard() {
 
   const { from, to, label } = useMemo(() => {
     if (range === "day") {
-      return { from: day, to: day, label: new Date(day + "T00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }) };
+      return { from: day, to: day, label: formatShortDate(day) };
     }
     if (range === "week") {
       const mon = weekValueToMonday(week);
       const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-      return { from: toISO(mon), to: toISO(sun), label: `${toISO(mon)} → ${toISO(sun)}` };
+      return { from: toISO(mon), to: toISO(sun), label: `${formatShortDate(toISO(mon))} → ${formatShortDate(toISO(sun))}` };
     }
     if (range === "month") {
       const [y, m] = month.split("-").map(Number);
