@@ -4,13 +4,14 @@ import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2, LogOut, History, ListChecks, School, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
+import { formatShortDate } from "@/lib/date-format";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin — Morning Attendance" }] }),
   component: AdminPage,
 });
 
-type Classroom = { id: string; classroom_name: string; active: boolean };
+type Classroom = { id: string; classroom_name: string; active: boolean; code: string | null };
 type Attendance = {
   id: string;
   classroom_id: string;
@@ -115,7 +116,7 @@ function ClassroomsPanel() {
 
   async function refresh() {
     setLoading(true);
-    const { data, error } = await supabase.from("classrooms").select("id, classroom_name, active");
+    const { data, error } = await supabase.from("classrooms").select("id, classroom_name, active, code");
     if (error) toast.error(error.message);
     else setRows((data ?? []).sort((a, b) => classroomCompare(a.classroom_name, b.classroom_name)));
     setLoading(false);
@@ -146,17 +147,19 @@ function ClassroomsPanel() {
             <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Classroom</th>
+                <th className="px-4 py-3">Code</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={2} className="px-4 py-8 text-center text-muted-foreground">No classrooms.</td></tr>
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No classrooms.</td></tr>
               ) : rows.map((c) => (
                 <tr key={c.id} className="border-t">
                   <td className="px-4 py-3 font-medium">{c.classroom_name}</td>
+                  <td className="px-4 py-3 font-mono text-sm">{c.code ?? <span className="text-muted-foreground">—</span>}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-1">
                       <button onClick={() => { setEditing(c); setShowForm(true); }} className="rounded-lg p-2 hover:bg-accent" title="Edit"><Pencil className="h-4 w-4" /></button>
@@ -179,16 +182,17 @@ function ClassroomsPanel() {
 
 function ClassroomDialog({ initial, onClose, onSaved }: { initial: Classroom | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(initial?.classroom_name ?? "");
+  const [code, setCode] = useState(initial?.code ?? "");
   const [busy, setBusy] = useState(false);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return toast.error("Name is required.");
     setBusy(true);
-    const payload = { classroom_name: name.trim(), active: true };
+    const codeVal = code.trim() === "" ? null : code.trim();
     const { error } = initial
-      ? await supabase.from("classrooms").update({ classroom_name: name.trim() }).eq("id", initial.id)
-      : await supabase.from("classrooms").insert(payload);
+      ? await supabase.from("classrooms").update({ classroom_name: name.trim(), code: codeVal }).eq("id", initial.id)
+      : await supabase.from("classrooms").insert({ classroom_name: name.trim(), code: codeVal, active: true });
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success(initial ? "Classroom updated." : "Classroom added.");
@@ -203,6 +207,12 @@ function ClassroomDialog({ initial, onClose, onSaved }: { initial: Classroom | n
           <span className="mb-1.5 block text-sm font-medium">Name</span>
           <input value={name} onChange={(e) => setName(e.target.value)} required
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
+        </label>
+        <label className="mb-4 block">
+          <span className="mb-1.5 block text-sm font-medium">Code</span>
+          <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. 501"
+            className="h-11 w-full rounded-xl border bg-background px-3 font-mono outline-none focus:ring-2 focus:ring-primary" />
+          <span className="mt-1 block text-xs text-muted-foreground">Teachers type this to pick the classroom on the form.</span>
         </label>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="h-10 rounded-xl border px-4 text-sm hover:bg-accent">Cancel</button>
@@ -225,11 +235,12 @@ function ResponsesPanel() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Attendance | null>(null);
   const [creating, setCreating] = useState(false);
+  const [dateFilter, setDateFilter] = useState("");
 
   async function refresh() {
     setLoading(true);
     const [cr, ar] = await Promise.all([
-      supabase.from("classrooms").select("id, classroom_name, active"),
+      supabase.from("classrooms").select("id, classroom_name, active, code"),
       supabase.from("attendance").select("*").order("attendance_date", { ascending: false }).order("updated_at", { ascending: false }),
     ]);
     setClassrooms(cr.data ?? []);
@@ -239,9 +250,13 @@ function ResponsesPanel() {
   useEffect(() => { refresh(); }, []);
 
   const nameById = useMemo(() => Object.fromEntries(classrooms.map((c) => [c.id, c.classroom_name])), [classrooms]);
+  const visibleRows = useMemo(
+    () => dateFilter ? rows.filter((r) => r.attendance_date === dateFilter) : rows,
+    [rows, dateFilter],
+  );
 
   async function remove(r: Attendance) {
-    if (!confirm(`Delete this response (${nameById[r.classroom_id]} • ${r.attendance_date})?`)) return;
+    if (!confirm(`Delete this response (${nameById[r.classroom_id]} • ${formatShortDate(r.attendance_date)})?`)) return;
     const { error } = await supabase.from("attendance").delete().eq("id", r.id);
     if (error) return toast.error(error.message);
     toast.success("Response deleted.");
@@ -250,7 +265,16 @@ function ResponsesPanel() {
 
   return (
     <>
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-muted-foreground">Filter by date</label>
+          <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
+            className="h-9 rounded-xl border bg-card px-3 text-sm" />
+          {dateFilter && (
+            <button type="button" onClick={() => setDateFilter("")}
+              className="h-9 rounded-xl border px-3 text-xs hover:bg-accent">Clear</button>
+          )}
+        </div>
         <button onClick={() => setCreating(true)}
           className="flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
           <Plus className="h-4 w-4" /> Add response
@@ -274,11 +298,11 @@ function ResponsesPanel() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No responses yet.</td></tr>
-              ) : rows.map((r) => (
+              ) : visibleRows.length === 0 ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No responses{dateFilter ? " for this date" : " yet"}.</td></tr>
+              ) : visibleRows.map((r) => (
                 <tr key={r.id} className="border-t">
-                  <td className="px-4 py-3">{r.attendance_date}</td>
+                  <td className="px-4 py-3">{formatShortDate(r.attendance_date)}</td>
                   <td className="px-4 py-3 font-medium">{nameById[r.classroom_id] ?? "—"}</td>
                   <td className="px-4 py-3 text-right">{r.on_time_count}</td>
                   <td className="px-4 py-3 text-right">{r.late_count}</td>
@@ -411,7 +435,7 @@ function ResponseDialog({ row, onClose, onSaved }: { row: Attendance; onClose: (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/30 p-4 sm:items-center">
       <form onSubmit={save} className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl sm:p-6">
         <h2 className="text-lg font-semibold">Edit response</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{row.attendance_date}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{formatShortDate(row.attendance_date)}</p>
         <label className="mt-4 mb-3 block">
           <span className="mb-1.5 block text-sm font-medium">Before 07:20</span>
           <input type="number" min={0} step={1} value={onTime} onChange={(e) => setOnTime(e.target.value)} required
@@ -440,11 +464,12 @@ function HistoryPanel() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateFilter, setDateFilter] = useState("");
 
   async function refresh() {
     setLoading(true);
     const [cr, hr] = await Promise.all([
-      supabase.from("classrooms").select("id, classroom_name, active"),
+      supabase.from("classrooms").select("id, classroom_name, active, code"),
       supabase.from("attendance_history").select("*").order("changed_at", { ascending: false }).limit(500),
     ]);
     setClassrooms(cr.data ?? []);
@@ -454,10 +479,14 @@ function HistoryPanel() {
   useEffect(() => { refresh(); }, []);
 
   const nameById = useMemo(() => Object.fromEntries(classrooms.map((c) => [c.id, c.classroom_name])), [classrooms]);
+  const visibleRows = useMemo(
+    () => dateFilter ? rows.filter((r) => r.attendance_date === dateFilter) : rows,
+    [rows, dateFilter],
+  );
 
   async function revert(r: HistoryRow) {
     const name = nameById[r.classroom_id] ?? "this classroom";
-    if (!confirm(`Revert ${name} on ${r.attendance_date} to: before 07:20 = ${r.on_time_count}, 07:20–08:20 = ${r.late_count}?`)) return;
+    if (!confirm(`Revert ${name} on ${formatShortDate(r.attendance_date)} to: before 07:20 = ${r.on_time_count}, 07:20–08:20 = ${r.late_count}?`)) return;
     const { error } = await supabase.from("attendance").upsert(
       {
         classroom_id: r.classroom_id,
@@ -473,52 +502,63 @@ function HistoryPanel() {
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3">When</th>
-              <th className="px-4 py-3">Action</th>
-              <th className="px-4 py-3">Classroom</th>
-              <th className="px-4 py-3">For date</th>
-              <th className="px-4 py-3 text-right">Before 07:20</th>
-              <th className="px-4 py-3 text-right">07:20–08:20</th>
-              <th className="px-4 py-3 text-right">Total</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
-            ) : rows.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No history yet.</td></tr>
-            ) : rows.map((r) => (
-              <tr key={r.id} className="border-t">
-                <td className="px-4 py-3 text-xs text-muted-foreground">{fmt(r.changed_at)}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                    r.action === "insert" ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                  }`}>
-                    {r.action === "insert" ? "Submitted" : "Overwritten"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 font-medium">{nameById[r.classroom_id] ?? "—"}</td>
-                <td className="px-4 py-3">{r.attendance_date}</td>
-                <td className="px-4 py-3 text-right">{r.on_time_count}</td>
-                <td className="px-4 py-3 text-right">{r.late_count}</td>
-                <td className="px-4 py-3 text-right">{r.on_time_count + r.late_count}</td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => revert(r)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent" title="Restore this version">
-                    <Undo2 className="h-3.5 w-3.5" /> Revert
-                  </button>
-                </td>
+    <>
+      <div className="mb-3 flex items-center gap-2">
+        <label className="text-xs text-muted-foreground">Filter by date</label>
+        <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
+          className="h-9 rounded-xl border bg-card px-3 text-sm" />
+        {dateFilter && (
+          <button type="button" onClick={() => setDateFilter("")}
+            className="h-9 rounded-xl border px-3 text-xs hover:bg-accent">Clear</button>
+        )}
+      </div>
+      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3">When</th>
+                <th className="px-4 py-3">Action</th>
+                <th className="px-4 py-3">Classroom</th>
+                <th className="px-4 py-3">For date</th>
+                <th className="px-4 py-3 text-right">Before 07:20</th>
+                <th className="px-4 py-3 text-right">07:20–08:20</th>
+                <th className="px-4 py-3 text-right">Total</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
+              ) : visibleRows.length === 0 ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No history{dateFilter ? " for this date" : " yet"}.</td></tr>
+              ) : visibleRows.map((r) => (
+                <tr key={r.id} className="border-t">
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{fmt(r.changed_at)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                      r.action === "insert" ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                    }`}>
+                      {r.action === "insert" ? "Submitted" : "Overwritten"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 font-medium">{nameById[r.classroom_id] ?? "—"}</td>
+                  <td className="px-4 py-3">{formatShortDate(r.attendance_date)}</td>
+                  <td className="px-4 py-3 text-right">{r.on_time_count}</td>
+                  <td className="px-4 py-3 text-right">{r.late_count}</td>
+                  <td className="px-4 py-3 text-right">{r.on_time_count + r.late_count}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => revert(r)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent" title="Restore this version">
+                      <Undo2 className="h-3.5 w-3.5" /> Revert
+                    </button>
+                  </td>
+                </tr>
             ))}
           </tbody>
         </table>
       </div>
     </section>
+    </>
   );
 }
 

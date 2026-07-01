@@ -4,6 +4,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { Trophy, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
+import { formatShortDate } from "@/lib/date-format";
 
 
 export const Route = createFileRoute("/dashboard")({
@@ -79,12 +80,12 @@ function Dashboard() {
 
   const { from, to, label } = useMemo(() => {
     if (range === "day") {
-      return { from: day, to: day, label: new Date(day + "T00:00").toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }) };
+      return { from: day, to: day, label: formatShortDate(day) };
     }
     if (range === "week") {
       const mon = weekValueToMonday(week);
       const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-      return { from: toISO(mon), to: toISO(sun), label: `${toISO(mon)} → ${toISO(sun)}` };
+      return { from: toISO(mon), to: toISO(sun), label: `${formatShortDate(toISO(mon))} → ${formatShortDate(toISO(sun))}` };
     }
     if (range === "month") {
       const [y, m] = month.split("-").map(Number);
@@ -250,7 +251,7 @@ function Dashboard() {
                       {r.missing.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => alert(`${r.name} missing submissions on:\n\n${r.missing.join("\n")}`)}
+                          onClick={() => alert(`${r.name} missing submissions on:\n\n${r.missing.map(formatShortDate).join("\n")}`)}
                           title={`Missing ${r.missing.length} day(s) — click for dates`}
                           className="inline-flex items-center text-amber-600 hover:text-amber-700"
                         >

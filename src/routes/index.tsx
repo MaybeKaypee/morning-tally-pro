@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,7 +15,7 @@ export const Route = createFileRoute("/")({
   component: AttendanceForm,
 });
 
-type Classroom = { id: string; classroom_name: string };
+type Classroom = { id: string; classroom_name: string; code: string | null };
 
 function todayISO() {
   const d = new Date();
@@ -25,7 +25,7 @@ function todayISO() {
 
 function AttendanceForm() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [classroomId, setClassroomId] = useState("");
+  const [code, setCode] = useState("");
   const [onTime, setOnTime] = useState("");
   const [total, setTotal] = useState("");
   const [loading, setLoading] = useState(true);
@@ -35,7 +35,7 @@ function AttendanceForm() {
   useEffect(() => {
     supabase
       .from("classrooms")
-      .select("id, classroom_name")
+      .select("id, classroom_name, code")
       .eq("active", true)
       .then(({ data, error }) => {
         if (error) toast.error(error.message);
@@ -43,6 +43,14 @@ function AttendanceForm() {
         setLoading(false);
       });
   }, []);
+
+  const matched = useMemo<Classroom | null>(() => {
+    const c = code.trim();
+    if (!c) return null;
+    return classrooms.find((x) => (x.code ?? "").toLowerCase() === c.toLowerCase()) ?? null;
+  }, [code, classrooms]);
+
+  const classroomId = matched?.id ?? "";
 
   // Load existing today's record when classroom changes, so partial edits merge.
   useEffect(() => {
@@ -55,8 +63,9 @@ function AttendanceForm() {
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
-          setOnTime(String(data.on_time_count));
-          setTotal(String(data.on_time_count + data.late_count));
+          setOnTime(data.on_time_count > 0 ? String(data.on_time_count) : "");
+          const t = data.on_time_count + data.late_count;
+          setTotal(t > 0 ? String(t) : "");
         } else {
           setOnTime(""); setTotal("");
         }
@@ -66,7 +75,7 @@ function AttendanceForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSuccess(false);
-    if (!classroomId) return toast.error("Please choose a classroom.");
+    if (!classroomId) return toast.error("Enter a valid classroom code.");
 
     const onTimeProvided = onTime.trim() !== "";
     const totalProvided = total.trim() !== "";
@@ -85,7 +94,6 @@ function AttendanceForm() {
 
     setSubmitting(true);
 
-    // Merge with any existing record for today so each field can be submitted separately.
     const { data: existing } = await supabase
       .from("attendance")
       .select("on_time_count, late_count")
@@ -98,8 +106,6 @@ function AttendanceForm() {
     const prevTotal = prevOn + prevLate;
 
     const nextOn = onTimeProvided ? o : prevOn;
-    // If only the early count is provided, lift the total to at least that count
-    // so partial submissions are accepted before the total is entered.
     const nextTotal = totalProvided ? t : Math.max(prevTotal, nextOn);
 
     if (nextOn > nextTotal) {
@@ -107,10 +113,13 @@ function AttendanceForm() {
       return toast.error("Before 07:20 cannot exceed total present.");
     }
 
-    // Confirm overwrite if existing values differ from what we're about to save.
-    if (existing && (existing.on_time_count !== nextOn || existing.late_count !== nextTotal - nextOn)) {
+    // Only warn on true overwrite of an existing NON-EMPTY value with a different value.
+    // Filling in a previously-empty (0) field does not need confirmation.
+    const overwritingOnTime = onTimeProvided && prevOn > 0 && prevOn !== nextOn;
+    const overwritingTotal = totalProvided && prevTotal > 0 && prevTotal !== nextTotal;
+    if (existing && (overwritingOnTime || overwritingTotal)) {
       const ok = window.confirm(
-        `Today's record already exists for this classroom (before 07:20: ${existing.on_time_count}, total: ${existing.on_time_count + existing.late_count}). Overwrite with new values?`,
+        `Today's record already has values (before 07:20: ${prevOn}, total: ${prevTotal}). Overwrite with new values?`,
       );
       if (!ok) { setSubmitting(false); return; }
     }
@@ -131,7 +140,6 @@ function AttendanceForm() {
     toast.success("Attendance saved for today.");
     setSuccess(true);
   }
-
 
   return (
     <main className="mx-auto max-w-lg px-4 py-8 sm:py-12">
@@ -157,22 +165,30 @@ function AttendanceForm() {
         onSubmit={handleSubmit}
         className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6"
       >
-        <Field label="Classroom">
-          <select
-            value={classroomId}
-            onChange={(e) => setClassroomId(e.target.value)}
-            disabled={loading}
-            className="h-12 w-full rounded-xl border bg-background px-3 text-base outline-none focus:ring-2 focus:ring-primary"
-            required
-          >
-            <option value="">{loading ? "Loading…" : "Select classroom"}</option>
-            {classrooms.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.classroom_name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <div className="mb-4">
+          <span className="mb-1.5 block text-sm font-medium text-foreground">Classroom</span>
+          <div className="grid grid-cols-2 gap-2">
+            <div className={`flex h-12 items-center justify-center rounded-xl border px-3 text-base font-medium ${
+              matched ? "bg-primary/5 text-foreground" : "bg-muted/40 text-muted-foreground"
+            }`}>
+              {loading ? "Loading…" : matched ? matched.classroom_name : "—"}
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Code"
+              disabled={loading}
+              className="h-12 w-full rounded-xl border bg-background px-3 text-base outline-none focus:ring-2 focus:ring-primary"
+              required
+            />
+          </div>
+          {code.trim() && !matched && !loading && (
+            <p className="mt-1.5 text-xs text-destructive">No classroom matches that code.</p>
+          )}
+        </div>
 
         <Field label="Students at 07:20">
           <input
@@ -191,7 +207,7 @@ function AttendanceForm() {
         </Field>
 
         <button
-          type="submit" disabled={submitting}
+          type="submit" disabled={submitting || !matched}
           className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-base font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
         >
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
