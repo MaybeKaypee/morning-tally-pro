@@ -435,7 +435,7 @@ function ResponseDialog({ row, onClose, onSaved }: { row: Attendance; onClose: (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/30 p-4 sm:items-center">
       <form onSubmit={save} className="w-full max-w-md rounded-2xl border bg-card p-5 shadow-xl sm:p-6">
         <h2 className="text-lg font-semibold">Edit response</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{row.attendance_date}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{formatShortDate(row.attendance_date)}</p>
         <label className="mt-4 mb-3 block">
           <span className="mb-1.5 block text-sm font-medium">Before 07:20</span>
           <input type="number" min={0} step={1} value={onTime} onChange={(e) => setOnTime(e.target.value)} required
