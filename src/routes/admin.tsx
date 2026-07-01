@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Loader2, Pencil, Plus, Trash2, LogOut, History, ListChecks, School, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
+import { formatShortDate } from "@/lib/date-format";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin — Morning Attendance" }] }),
