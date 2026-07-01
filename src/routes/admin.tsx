@@ -464,6 +464,7 @@ function HistoryPanel() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateFilter, setDateFilter] = useState("");
 
   async function refresh() {
     setLoading(true);
@@ -478,10 +479,14 @@ function HistoryPanel() {
   useEffect(() => { refresh(); }, []);
 
   const nameById = useMemo(() => Object.fromEntries(classrooms.map((c) => [c.id, c.classroom_name])), [classrooms]);
+  const visibleRows = useMemo(
+    () => dateFilter ? rows.filter((r) => r.attendance_date === dateFilter) : rows,
+    [rows, dateFilter],
+  );
 
   async function revert(r: HistoryRow) {
     const name = nameById[r.classroom_id] ?? "this classroom";
-    if (!confirm(`Revert ${name} on ${r.attendance_date} to: before 07:20 = ${r.on_time_count}, 07:20–08:20 = ${r.late_count}?`)) return;
+    if (!confirm(`Revert ${name} on ${formatShortDate(r.attendance_date)} to: before 07:20 = ${r.on_time_count}, 07:20–08:20 = ${r.late_count}?`)) return;
     const { error } = await supabase.from("attendance").upsert(
       {
         classroom_id: r.classroom_id,
@@ -497,47 +502,57 @@ function HistoryPanel() {
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3">When</th>
-              <th className="px-4 py-3">Action</th>
-              <th className="px-4 py-3">Classroom</th>
-              <th className="px-4 py-3">For date</th>
-              <th className="px-4 py-3 text-right">Before 07:20</th>
-              <th className="px-4 py-3 text-right">07:20–08:20</th>
-              <th className="px-4 py-3 text-right">Total</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
-            ) : rows.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No history yet.</td></tr>
-            ) : rows.map((r) => (
-              <tr key={r.id} className="border-t">
-                <td className="px-4 py-3 text-xs text-muted-foreground">{fmt(r.changed_at)}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                    r.action === "insert" ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                  }`}>
-                    {r.action === "insert" ? "Submitted" : "Overwritten"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 font-medium">{nameById[r.classroom_id] ?? "—"}</td>
-                <td className="px-4 py-3">{r.attendance_date}</td>
-                <td className="px-4 py-3 text-right">{r.on_time_count}</td>
-                <td className="px-4 py-3 text-right">{r.late_count}</td>
-                <td className="px-4 py-3 text-right">{r.on_time_count + r.late_count}</td>
-                <td className="px-4 py-3 text-right">
-                  <button onClick={() => revert(r)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent" title="Restore this version">
-                    <Undo2 className="h-3.5 w-3.5" /> Revert
-                  </button>
-                </td>
+    <>
+      <div className="mb-3 flex items-center gap-2">
+        <label className="text-xs text-muted-foreground">Filter by date</label>
+        <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
+          className="h-9 rounded-xl border bg-card px-3 text-sm" />
+        {dateFilter && (
+          <button type="button" onClick={() => setDateFilter("")}
+            className="h-9 rounded-xl border px-3 text-xs hover:bg-accent">Clear</button>
+        )}
+      </div>
+      <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3">When</th>
+                <th className="px-4 py-3">Action</th>
+                <th className="px-4 py-3">Classroom</th>
+                <th className="px-4 py-3">For date</th>
+                <th className="px-4 py-3 text-right">Before 07:20</th>
+                <th className="px-4 py-3 text-right">07:20–08:20</th>
+                <th className="px-4 py-3 text-right">Total</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
+              ) : visibleRows.length === 0 ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No history{dateFilter ? " for this date" : " yet"}.</td></tr>
+              ) : visibleRows.map((r) => (
+                <tr key={r.id} className="border-t">
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{fmt(r.changed_at)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                      r.action === "insert" ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                    }`}>
+                      {r.action === "insert" ? "Submitted" : "Overwritten"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 font-medium">{nameById[r.classroom_id] ?? "—"}</td>
+                  <td className="px-4 py-3">{formatShortDate(r.attendance_date)}</td>
+                  <td className="px-4 py-3 text-right">{r.on_time_count}</td>
+                  <td className="px-4 py-3 text-right">{r.late_count}</td>
+                  <td className="px-4 py-3 text-right">{r.on_time_count + r.late_count}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => revert(r)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent" title="Restore this version">
+                      <Undo2 className="h-3.5 w-3.5" /> Revert
+                    </button>
+                  </td>
+                </tr>
             ))}
           </tbody>
         </table>
