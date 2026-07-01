@@ -558,6 +558,7 @@ function HistoryPanel() {
         </table>
       </div>
     </section>
+    </>
   );
 }
 
