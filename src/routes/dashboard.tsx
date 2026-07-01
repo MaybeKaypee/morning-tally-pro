@@ -251,7 +251,7 @@ function Dashboard() {
                       {r.missing.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => alert(`${r.name} missing submissions on:\n\n${r.missing.join("\n")}`)}
+                          onClick={() => alert(`${r.name} missing submissions on:\n\n${r.missing.map(formatShortDate).join("\n")}`)}
                           title={`Missing ${r.missing.length} day(s) — click for dates`}
                           className="inline-flex items-center text-amber-600 hover:text-amber-700"
                         >
