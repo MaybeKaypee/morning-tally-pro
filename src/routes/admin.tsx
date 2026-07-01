@@ -235,6 +235,7 @@ function ResponsesPanel() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Attendance | null>(null);
   const [creating, setCreating] = useState(false);
+  const [dateFilter, setDateFilter] = useState("");
 
   async function refresh() {
     setLoading(true);
@@ -249,9 +250,13 @@ function ResponsesPanel() {
   useEffect(() => { refresh(); }, []);
 
   const nameById = useMemo(() => Object.fromEntries(classrooms.map((c) => [c.id, c.classroom_name])), [classrooms]);
+  const visibleRows = useMemo(
+    () => dateFilter ? rows.filter((r) => r.attendance_date === dateFilter) : rows,
+    [rows, dateFilter],
+  );
 
   async function remove(r: Attendance) {
-    if (!confirm(`Delete this response (${nameById[r.classroom_id]} • ${r.attendance_date})?`)) return;
+    if (!confirm(`Delete this response (${nameById[r.classroom_id]} • ${formatShortDate(r.attendance_date)})?`)) return;
     const { error } = await supabase.from("attendance").delete().eq("id", r.id);
     if (error) return toast.error(error.message);
     toast.success("Response deleted.");
@@ -260,7 +265,16 @@ function ResponsesPanel() {
 
   return (
     <>
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-muted-foreground">Filter by date</label>
+          <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
+            className="h-9 rounded-xl border bg-card px-3 text-sm" />
+          {dateFilter && (
+            <button type="button" onClick={() => setDateFilter("")}
+              className="h-9 rounded-xl border px-3 text-xs hover:bg-accent">Clear</button>
+          )}
+        </div>
         <button onClick={() => setCreating(true)}
           className="flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
           <Plus className="h-4 w-4" /> Add response
@@ -284,11 +298,11 @@ function ResponsesPanel() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Loading…</td></tr>
-              ) : rows.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No responses yet.</td></tr>
-              ) : rows.map((r) => (
+              ) : visibleRows.length === 0 ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No responses{dateFilter ? " for this date" : " yet"}.</td></tr>
+              ) : visibleRows.map((r) => (
                 <tr key={r.id} className="border-t">
-                  <td className="px-4 py-3">{r.attendance_date}</td>
+                  <td className="px-4 py-3">{formatShortDate(r.attendance_date)}</td>
                   <td className="px-4 py-3 font-medium">{nameById[r.classroom_id] ?? "—"}</td>
                   <td className="px-4 py-3 text-right">{r.on_time_count}</td>
                   <td className="px-4 py-3 text-right">{r.late_count}</td>
