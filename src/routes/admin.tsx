@@ -11,7 +11,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Classroom = { id: string; classroom_name: string; active: boolean };
+type Classroom = { id: string; classroom_name: string; active: boolean; code: string | null };
 type Attendance = {
   id: string;
   classroom_id: string;
