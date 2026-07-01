@@ -116,7 +116,7 @@ function ClassroomsPanel() {
 
   async function refresh() {
     setLoading(true);
-    const { data, error } = await supabase.from("classrooms").select("id, classroom_name, active");
+    const { data, error } = await supabase.from("classrooms").select("id, classroom_name, active, code");
     if (error) toast.error(error.message);
     else setRows((data ?? []).sort((a, b) => classroomCompare(a.classroom_name, b.classroom_name)));
     setLoading(false);
@@ -230,7 +230,7 @@ function ResponsesPanel() {
   async function refresh() {
     setLoading(true);
     const [cr, ar] = await Promise.all([
-      supabase.from("classrooms").select("id, classroom_name, active"),
+      supabase.from("classrooms").select("id, classroom_name, active, code"),
       supabase.from("attendance").select("*").order("attendance_date", { ascending: false }).order("updated_at", { ascending: false }),
     ]);
     setClassrooms(cr.data ?? []);
@@ -445,7 +445,7 @@ function HistoryPanel() {
   async function refresh() {
     setLoading(true);
     const [cr, hr] = await Promise.all([
-      supabase.from("classrooms").select("id, classroom_name, active"),
+      supabase.from("classrooms").select("id, classroom_name, active, code"),
       supabase.from("attendance_history").select("*").order("changed_at", { ascending: false }).limit(500),
     ]);
     setClassrooms(cr.data ?? []);
