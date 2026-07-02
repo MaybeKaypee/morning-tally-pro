@@ -103,7 +103,7 @@ function AttendanceForm() {
       });
   }, [classroomId]);
 
-  async function doSave(nextOn: number, nextLate: number | null) {
+  async function doSave(nextOn: number, nextLate: number | null): Promise<void> {
     setSubmitting(true);
     const { error } = await supabase
       .from("attendance")
@@ -117,7 +117,7 @@ function AttendanceForm() {
         { onConflict: "classroom_id,attendance_date" },
       );
     setSubmitting(false);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success("Attendance saved for today.");
     setSuccess(true);
     setExisting({ on_time_count: nextOn, late_count: nextLate });
