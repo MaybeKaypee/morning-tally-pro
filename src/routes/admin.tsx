@@ -350,22 +350,23 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
     if (!classroomId) return toast.error("Pick a classroom.");
     if (!date) return toast.error("Pick a date.");
     const o = onTime === "" ? 0 : Number(onTime);
-    const l = late === "" ? 0 : Number(late);
-    if (!Number.isInteger(o) || o < 0 || !Number.isInteger(l) || l < 0) {
-      return toast.error("Counts must be non-negative whole numbers.");
-    }
-    const total = Math.max(l, o);
+    const totalBlank = late === "";
+    const totalVal = totalBlank ? null : Number(late);
+    if (!Number.isInteger(o) || o < 0) return toast.error("Before 07:20 must be a non-negative whole number.");
+    if (totalVal !== null && (!Number.isInteger(totalVal) || totalVal < 0)) return toast.error("Total present must be a non-negative whole number.");
+    if (totalVal !== null && o > totalVal) return toast.error("Before 07:20 cannot exceed total present.");
+    const nextLate: number | null = totalVal === null ? null : totalVal - o;
     setBusy(true);
     const { data: existing } = await supabase.from("attendance")
       .select("id, on_time_count, late_count")
       .eq("classroom_id", classroomId).eq("attendance_date", date).maybeSingle();
-    if (existing && (existing.on_time_count !== o || existing.late_count !== total)) {
-      if (!confirm(`A response already exists for this classroom on ${date}. Overwrite it?`)) {
+    if (existing && (existing.on_time_count !== o || existing.late_count !== nextLate)) {
+      if (!confirm(`A response already exists for ${formatShortDate(date)}. Overwrite it?`)) {
         setBusy(false); return;
       }
     }
     const { error } = await supabase.from("attendance").upsert(
-      { classroom_id: classroomId, attendance_date: date, on_time_count: o, late_count: total },
+      { classroom_id: classroomId, attendance_date: date, on_time_count: o, late_count: nextLate },
       { onConflict: "classroom_id,attendance_date" },
     );
     setBusy(false);
