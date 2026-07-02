@@ -18,7 +18,7 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 type Classroom = { id: string; classroom_name: string; active: boolean };
-type Attendance = { classroom_id: string; attendance_date: string; on_time_count: number; late_count: number };
+type Attendance = { classroom_id: string; attendance_date: string; on_time_count: number; late_count: number | null };
 type Range = "day" | "week" | "month" | "all";
 
 function toISO(d: Date) {
@@ -27,14 +27,6 @@ function toISO(d: Date) {
 }
 function todayISO() { return toISO(new Date()); }
 function thisMonthISO() { return todayISO().slice(0, 7); }
-// Monday of the week containing `date`
-function weekStart(date: Date) {
-  const d = new Date(date);
-  const day = (d.getDay() + 6) % 7; // Mon=0..Sun=6
-  d.setDate(d.getDate() - day);
-  return d;
-}
-// HTML week input value like "2026-W26"
 function isoWeekValue(date: Date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const day = d.getUTCDay() || 7;
@@ -45,14 +37,12 @@ function isoWeekValue(date: Date) {
 }
 function weekValueToMonday(v: string) {
   const [y, w] = v.split("-W").map(Number);
-  // ISO week 1 = week containing Jan 4
   const jan4 = new Date(Date.UTC(y, 0, 4));
   const jan4Day = jan4.getUTCDay() || 7;
   const week1Mon = new Date(jan4);
   week1Mon.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
   const mon = new Date(week1Mon);
   mon.setUTCDate(week1Mon.getUTCDate() + (w - 1) * 7);
-  // Return as local-naive date matching that calendar day
   return new Date(mon.getUTCFullYear(), mon.getUTCMonth(), mon.getUTCDate());
 }
 
@@ -73,7 +63,7 @@ function Dashboard() {
         supabase.from("attendance").select("classroom_id, attendance_date, on_time_count, late_count"),
       ]);
       setClassrooms(cr.data ?? []);
-      setRecords(ar.data ?? []);
+      setRecords((ar.data ?? []) as Attendance[]);
       setLoading(false);
     })();
   }, []);
@@ -101,7 +91,6 @@ function Dashboard() {
     [records, from, to],
   );
 
-  // Expected weekdays (Mon-Fri) inside the selected range, capped at today.
   const expectedDates = useMemo(() => {
     if (range !== "week") return [] as string[];
     const today = todayISO();
@@ -117,11 +106,22 @@ function Dashboard() {
   }, [range, from, to]);
 
   const rows = useMemo(() => {
-    const byClass: Record<string, { onTime: number; total: number; pctSum: number; n: number; dates: Set<string> }> = {};
+    const byClass: Record<string, {
+      onTime: number; total: number; pctSum: number; n: number;
+      completeDates: Set<string>; anyDates: Set<string>; hasIncomplete: boolean;
+    }> = {};
     for (const r of filtered) {
+      const entry = (byClass[r.classroom_id] ||= {
+        onTime: 0, total: 0, pctSum: 0, n: 0,
+        completeDates: new Set(), anyDates: new Set(), hasIncomplete: false,
+      });
+      entry.anyDates.add(r.attendance_date);
+      if (r.late_count == null) {
+        entry.hasIncomplete = true;
+        continue; // incomplete: skip in ranking math
+      }
       const denom = r.on_time_count + r.late_count;
-      const entry = (byClass[r.classroom_id] ||= { onTime: 0, total: 0, pctSum: 0, n: 0, dates: new Set() });
-      entry.dates.add(r.attendance_date);
+      entry.completeDates.add(r.attendance_date);
       if (denom === 0) continue;
       entry.onTime += r.on_time_count;
       entry.total += denom;
@@ -132,16 +132,25 @@ function Dashboard() {
       .filter((c) => c.active || byClass[c.id])
       .map((c) => {
         const b = byClass[c.id];
+        const complete = !!b && b.n > 0;
         const onTime = b?.onTime ?? 0;
         const total = b?.total ?? 0;
         const late = total - onTime;
-        const pct = b && b.n > 0 ? (range === "day" ? (total > 0 ? (onTime / total) * 100 : 0) : b.pctSum / b.n) : 0;
-        const missing = expectedDates.filter((d) => !b?.dates.has(d));
-        return { id: c.id, name: c.classroom_name, onTime, late, total, pct, submitted: !!b && b.n > 0, missing };
+        const pct = complete ? (range === "day" ? (total > 0 ? (onTime / total) * 100 : 0) : b!.pctSum / b!.n) : 0;
+        const missing = expectedDates.filter((d) => !b?.anyDates.has(d));
+        // "onTime only" preview (day view) when incomplete
+        const dayRecord = range === "day" ? filtered.find((r) => r.classroom_id === c.id) : undefined;
+        const displayOnTime = complete ? onTime : (dayRecord?.on_time_count ?? 0);
+        return {
+          id: c.id, name: c.classroom_name,
+          onTime: displayOnTime, late, total, pct,
+          complete, hasAny: !!b,
+          missing,
+        };
       })
       .sort((a, b) => {
-        if (a.submitted !== b.submitted) return a.submitted ? -1 : 1;
-        if (a.submitted) return b.pct - a.pct;
+        if (a.complete !== b.complete) return a.complete ? -1 : 1;
+        if (a.complete) return b.pct - a.pct;
         return classroomCompare(a.name, b.name);
       });
   }, [filtered, classrooms, range, expectedDates]);
@@ -150,9 +159,11 @@ function Dashboard() {
   const todays = useMemo(() => records.filter((r) => r.attendance_date === todayISO()), [records]);
   const summary = useMemo(() => {
     const onTime = todays.reduce((s, r) => s + r.on_time_count, 0);
-    const late = todays.reduce((s, r) => s + r.late_count, 0);
-    const total = onTime + late;
-    const pct = total > 0 ? (onTime / total) * 100 : 0;
+    const late = todays.reduce((s, r) => s + (r.late_count ?? 0), 0);
+    const complete = todays.filter((r) => r.late_count != null);
+    const total = complete.reduce((s, r) => s + r.on_time_count + (r.late_count ?? 0), 0);
+    const onTimeC = complete.reduce((s, r) => s + r.on_time_count, 0);
+    const pct = total > 0 ? (onTimeC / total) * 100 : 0;
     return { submitted: new Set(todays.map((r) => r.classroom_id)).size, onTime, late, pct };
   }, [todays]);
 
@@ -207,7 +218,7 @@ function Dashboard() {
         <h2 className="mb-3 text-base font-semibold">On-time % by classroom</h2>
         <div className="h-64 w-full">
           <ResponsiveContainer>
-            <BarChart data={rows.map((r) => ({ name: r.name, pct: Number(r.pct.toFixed(1)) }))}>
+            <BarChart data={rows.filter(r => r.complete).map((r) => ({ name: r.name, pct: Number(r.pct.toFixed(1)) }))}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
@@ -240,9 +251,9 @@ function Dashboard() {
                 <tr key={r.id} className="border-t">
                   <td className="px-4 py-3">
                     <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
-                      r.submitted && i === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                      r.complete && i === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
                     }`}>
-                      {r.submitted && i === 0 ? <Trophy className="h-3.5 w-3.5" /> : r.submitted ? i + 1 : "—"}
+                      {r.complete && i === 0 ? <Trophy className="h-3.5 w-3.5" /> : r.complete ? i + 1 : "—"}
                     </span>
                   </td>
                   <td className="px-4 py-3 font-medium">
@@ -262,11 +273,11 @@ function Dashboard() {
                   </td>
 
                   <td className="px-4 py-3 text-right font-semibold text-primary">
-                    {r.submitted ? `${r.pct.toFixed(1)}%` : <span className="text-muted-foreground font-normal">—</span>}
+                    {r.complete ? `${r.pct.toFixed(1)}%` : <span className="text-muted-foreground font-normal">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-right">{r.submitted ? r.onTime : "—"}</td>
-                  <td className="px-4 py-3 text-right">{r.submitted ? r.late : "—"}</td>
-                  <td className="px-4 py-3 text-right">{r.submitted ? r.total : "—"}</td>
+                  <td className="px-4 py-3 text-right">{r.hasAny ? r.onTime : "—"}</td>
+                  <td className="px-4 py-3 text-right">{r.complete ? r.late : "—"}</td>
+                  <td className="px-4 py-3 text-right">{r.complete ? r.total : "—"}</td>
                 </tr>
               ))}
             </tbody>
