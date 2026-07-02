@@ -20,7 +20,7 @@ export type Database = {
           classroom_id: string
           created_at: string
           id: string
-          late_count: number
+          late_count: number | null
           on_time_count: number
           updated_at: string
         }
@@ -29,7 +29,7 @@ export type Database = {
           classroom_id: string
           created_at?: string
           id?: string
-          late_count: number
+          late_count?: number | null
           on_time_count: number
           updated_at?: string
         }
@@ -38,7 +38,7 @@ export type Database = {
           classroom_id?: string
           created_at?: string
           id?: string
-          late_count?: number
+          late_count?: number | null
           on_time_count?: number
           updated_at?: string
         }
@@ -58,9 +58,10 @@ export type Database = {
           attendance_date: string
           attendance_id: string | null
           changed_at: string
+          changed_by: string | null
           classroom_id: string
           id: string
-          late_count: number
+          late_count: number | null
           on_time_count: number
         }
         Insert: {
@@ -68,9 +69,10 @@ export type Database = {
           attendance_date: string
           attendance_id?: string | null
           changed_at?: string
+          changed_by?: string | null
           classroom_id: string
           id?: string
-          late_count: number
+          late_count?: number | null
           on_time_count: number
         }
         Update: {
@@ -78,9 +80,10 @@ export type Database = {
           attendance_date?: string
           attendance_id?: string | null
           changed_at?: string
+          changed_by?: string | null
           classroom_id?: string
           id?: string
-          late_count?: number
+          late_count?: number | null
           on_time_count?: number
         }
         Relationships: []
