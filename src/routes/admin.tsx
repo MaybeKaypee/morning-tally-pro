@@ -465,7 +465,7 @@ function HistoryPanel() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dateFilter, setDateFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState(todayISO());
 
   async function refresh() {
     setLoading(true);
@@ -537,17 +537,18 @@ function HistoryPanel() {
                 <tr key={r.id} className="border-t">
                   <td className="px-4 py-3 text-xs text-muted-foreground">{fmt(r.changed_at)}</td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                      r.action === "insert" ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                    }`}>
-                      {r.action === "insert" ? "Submitted" : "Overwritten"}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <ActionBadge action={r.action} />
+                      {r.changed_by && (
+                        <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Admin</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 font-medium">{nameById[r.classroom_id] ?? "—"}</td>
                   <td className="px-4 py-3">{formatShortDate(r.attendance_date)}</td>
                   <td className="px-4 py-3 text-right">{r.on_time_count}</td>
-                  <td className="px-4 py-3 text-right">{r.late_count}</td>
-                  <td className="px-4 py-3 text-right">{r.on_time_count + r.late_count}</td>
+                  <td className="px-4 py-3 text-right">{r.late_count == null ? "—" : r.late_count}</td>
+                  <td className="px-4 py-3 text-right">{r.late_count == null ? "—" : r.on_time_count + r.late_count}</td>
                   <td className="px-4 py-3 text-right">
                     <button onClick={() => revert(r)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent" title="Restore this version">
                       <Undo2 className="h-3.5 w-3.5" /> Revert
@@ -567,4 +568,20 @@ function HistoryPanel() {
 function fmt(ts: string) {
   const d = new Date(ts);
   return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function todayISO() {
+  const d = new Date();
+  const tz = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - tz).toISOString().slice(0, 10);
+}
+
+function ActionBadge({ action }: { action: string }) {
+  if (action === "insert") {
+    return <span className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">Inserted</span>;
+  }
+  if (action === "submit") {
+    return <span className="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Submitted</span>;
+  }
+  return <span className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">Overwritten</span>;
 }
