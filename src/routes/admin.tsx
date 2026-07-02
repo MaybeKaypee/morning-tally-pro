@@ -17,7 +17,7 @@ type Attendance = {
   classroom_id: string;
   attendance_date: string;
   on_time_count: number;
-  late_count: number;
+  late_count: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -27,9 +27,10 @@ type HistoryRow = {
   classroom_id: string;
   attendance_date: string;
   on_time_count: number;
-  late_count: number;
+  late_count: number | null;
   action: string;
   changed_at: string;
+  changed_by: string | null;
 };
 
 type Tab = "classrooms" | "responses" | "history";
