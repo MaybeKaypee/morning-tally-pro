@@ -414,15 +414,16 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
 
 function ResponseDialog({ row, onClose, onSaved }: { row: Attendance; onClose: () => void; onSaved: () => void }) {
   const [onTime, setOnTime] = useState(String(row.on_time_count));
-  const [late, setLate] = useState(String(row.late_count));
+  const [late, setLate] = useState(row.late_count == null ? "" : String(row.late_count));
   const [busy, setBusy] = useState(false);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    const o = Number(onTime), l = Number(late);
-    if (!Number.isInteger(o) || o < 0 || !Number.isInteger(l) || l < 0) {
-      return toast.error("Counts must be non-negative whole numbers.");
-    }
+    const o = Number(onTime);
+    const lateBlank = late.trim() === "";
+    const l = lateBlank ? null : Number(late);
+    if (!Number.isInteger(o) || o < 0) return toast.error("Before 07:20 must be a non-negative whole number.");
+    if (l !== null && (!Number.isInteger(l) || l < 0)) return toast.error("07:20–08:20 must be a non-negative whole number.");
     setBusy(true);
     const { error } = await supabase.from("attendance")
       .update({ on_time_count: o, late_count: l }).eq("id", row.id);
@@ -444,7 +445,8 @@ function ResponseDialog({ row, onClose, onSaved }: { row: Attendance; onClose: (
         </label>
         <label className="mb-4 block">
           <span className="mb-1.5 block text-sm font-medium">Between 07:20–08:20</span>
-          <input type="number" min={0} step={1} value={late} onChange={(e) => setLate(e.target.value)} required
+          <input type="number" min={0} step={1} value={late} onChange={(e) => setLate(e.target.value)}
+            placeholder="Leave blank if not yet counted"
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
         </label>
         <div className="flex justify-end gap-2">
