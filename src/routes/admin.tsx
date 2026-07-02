@@ -236,7 +236,7 @@ function ResponsesPanel() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Attendance | null>(null);
   const [creating, setCreating] = useState(false);
-  const [dateFilter, setDateFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState(todayISO());
 
   async function refresh() {
     setLoading(true);
@@ -306,8 +306,8 @@ function ResponsesPanel() {
                   <td className="px-4 py-3">{formatShortDate(r.attendance_date)}</td>
                   <td className="px-4 py-3 font-medium">{nameById[r.classroom_id] ?? "—"}</td>
                   <td className="px-4 py-3 text-right">{r.on_time_count}</td>
-                  <td className="px-4 py-3 text-right">{r.late_count}</td>
-                  <td className="px-4 py-3 text-right">{r.on_time_count + r.late_count}</td>
+                  <td className="px-4 py-3 text-right">{r.late_count == null ? "—" : r.late_count}</td>
+                  <td className="px-4 py-3 text-right">{r.late_count == null ? "—" : r.on_time_count + r.late_count}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{fmt(r.created_at)}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">{fmt(r.updated_at)}</td>
                   <td className="px-4 py-3 text-right">
