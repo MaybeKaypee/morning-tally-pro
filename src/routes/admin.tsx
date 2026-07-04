@@ -343,9 +343,21 @@ function ResponsesPanel() {
       {creating && (
         <NewResponseDialog classrooms={classrooms} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); refresh(); }} />
       )}
+      <ConfirmDialog
+        open={!!pendingDelete}
+        destructive
+        title="Delete response?"
+        message={pendingDelete
+          ? `${nameById[pendingDelete.classroom_id] ?? "This response"} • ${formatShortDate(pendingDelete.attendance_date)} will be deleted.`
+          : ""}
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </>
   );
 }
+
 
 function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Classroom[]; onClose: () => void; onSaved: () => void }) {
   const sorted = useMemo(
