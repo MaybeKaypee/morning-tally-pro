@@ -248,6 +248,7 @@ function ResponsesPanel() {
   const [editing, setEditing] = useState<Attendance | null>(null);
   const [creating, setCreating] = useState(false);
   const [dateFilter, setDateFilter] = useState(todayISO());
+  const [pendingDelete, setPendingDelete] = useState<Attendance | null>(null);
 
   async function refresh() {
     setLoading(true);
