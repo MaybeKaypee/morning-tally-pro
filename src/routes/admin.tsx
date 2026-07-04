@@ -288,8 +288,8 @@ function ResponsesPanel() {
               <tr>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Classroom</th>
-                <th className="px-4 py-3 text-right">Before 07:20</th>
-                <th className="px-4 py-3 text-right">07:20–08:20</th>
+                <th className="px-4 py-3 text-right">Before 07:45</th>
+                <th className="px-4 py-3 text-right">07:45–08:20</th>
                 <th className="px-4 py-3 text-right">Total</th>
                 <th className="px-4 py-3">Submitted</th>
                 <th className="px-4 py-3">Last updated</th>
@@ -352,9 +352,9 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
     const o = onTime === "" ? 0 : Number(onTime);
     const totalBlank = late === "";
     const totalVal = totalBlank ? null : Number(late);
-    if (!Number.isInteger(o) || o < 0) return toast.error("Before 07:20 must be a non-negative whole number.");
+    if (!Number.isInteger(o) || o < 0) return toast.error("Before 07:45 must be a non-negative whole number.");
     if (totalVal !== null && (!Number.isInteger(totalVal) || totalVal < 0)) return toast.error("Total present must be a non-negative whole number.");
-    if (totalVal !== null && o > totalVal) return toast.error("Before 07:20 cannot exceed total present.");
+    if (totalVal !== null && o > totalVal) return toast.error("Before 07:45 cannot exceed total present.");
     const nextLate: number | null = totalVal === null ? null : totalVal - o;
     setBusy(true);
     const { data: existing } = await supabase.from("attendance")
@@ -392,12 +392,12 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
         </label>
         <label className="mb-3 block">
-          <span className="mb-1.5 block text-sm font-medium">Before 07:20</span>
+          <span className="mb-1.5 block text-sm font-medium">Before 07:45</span>
           <input type="number" min={0} step={1} value={onTime} onChange={(e) => setOnTime(e.target.value)}
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
         </label>
         <label className="mb-4 block">
-          <span className="mb-1.5 block text-sm font-medium">Total present (07:20–08:20, incl. before)</span>
+          <span className="mb-1.5 block text-sm font-medium">Total present (07:45–08:20, incl. before)</span>
           <input type="number" min={0} step={1} value={late} onChange={(e) => setLate(e.target.value)}
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
         </label>
@@ -423,8 +423,8 @@ function ResponseDialog({ row, onClose, onSaved }: { row: Attendance; onClose: (
     const o = Number(onTime);
     const lateBlank = late.trim() === "";
     const l = lateBlank ? null : Number(late);
-    if (!Number.isInteger(o) || o < 0) return toast.error("Before 07:20 must be a non-negative whole number.");
-    if (l !== null && (!Number.isInteger(l) || l < 0)) return toast.error("07:20–08:20 must be a non-negative whole number.");
+    if (!Number.isInteger(o) || o < 0) return toast.error("Before 07:45 must be a non-negative whole number.");
+    if (l !== null && (!Number.isInteger(l) || l < 0)) return toast.error("07:45–08:20 must be a non-negative whole number.");
     setBusy(true);
     const { error } = await supabase.from("attendance")
       .update({ on_time_count: o, late_count: l }).eq("id", row.id);
@@ -440,12 +440,12 @@ function ResponseDialog({ row, onClose, onSaved }: { row: Attendance; onClose: (
         <h2 className="text-lg font-semibold">Edit response</h2>
         <p className="mt-1 text-xs text-muted-foreground">{formatShortDate(row.attendance_date)}</p>
         <label className="mt-4 mb-3 block">
-          <span className="mb-1.5 block text-sm font-medium">Before 07:20</span>
+          <span className="mb-1.5 block text-sm font-medium">Before 07:45</span>
           <input type="number" min={0} step={1} value={onTime} onChange={(e) => setOnTime(e.target.value)} required
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
         </label>
         <label className="mb-4 block">
-          <span className="mb-1.5 block text-sm font-medium">Between 07:20–08:20</span>
+          <span className="mb-1.5 block text-sm font-medium">Between 07:45–08:20</span>
           <input type="number" min={0} step={1} value={late} onChange={(e) => setLate(e.target.value)}
             placeholder="Leave blank if not yet counted"
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
@@ -490,7 +490,7 @@ function HistoryPanel() {
 
   async function revert(r: HistoryRow) {
     const name = nameById[r.classroom_id] ?? "this classroom";
-    if (!confirm(`Revert ${name} on ${formatShortDate(r.attendance_date)} to: before 07:20 = ${r.on_time_count}, 07:20–08:20 = ${r.late_count}?`)) return;
+    if (!confirm(`Revert ${name} on ${formatShortDate(r.attendance_date)} to: before 07:45 = ${r.on_time_count}, 07:45–08:20 = ${r.late_count}?`)) return;
     const { error } = await supabase.from("attendance").upsert(
       {
         classroom_id: r.classroom_id,
@@ -525,8 +525,8 @@ function HistoryPanel() {
                 <th className="px-4 py-3">Action</th>
                 <th className="px-4 py-3">Classroom</th>
                 <th className="px-4 py-3">For date</th>
-                <th className="px-4 py-3 text-right">Before 07:20</th>
-                <th className="px-4 py-3 text-right">07:20–08:20</th>
+                <th className="px-4 py-3 text-right">Before 07:45</th>
+                <th className="px-4 py-3 text-right">07:45–08:20</th>
                 <th className="px-4 py-3 text-right">Total</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
