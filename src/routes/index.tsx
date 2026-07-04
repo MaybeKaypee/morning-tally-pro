@@ -207,7 +207,6 @@ function AttendanceForm() {
             </div>
             <input
               type="text"
-              inputMode="numeric"
               autoComplete="off"
               value={code}
               onChange={(e) => setCode(e.target.value)}
