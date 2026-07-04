@@ -55,6 +55,7 @@ function Dashboard() {
   const [week, setWeek] = useState(isoWeekValue(new Date()));
   const [month, setMonth] = useState(thisMonthISO());
   const [loading, setLoading] = useState(true);
+  const [missingInfo, setMissingInfo] = useState<{ name: string; dates: string[] } | null>(null);
 
   useEffect(() => {
     (async () => {
