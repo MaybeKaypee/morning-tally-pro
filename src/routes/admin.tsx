@@ -268,13 +268,16 @@ function ResponsesPanel() {
     [rows, dateFilter],
   );
 
-  async function remove(r: Attendance) {
-    if (!confirm(`Delete this response (${nameById[r.classroom_id]} • ${formatShortDate(r.attendance_date)})?`)) return;
+  async function confirmDelete() {
+    const r = pendingDelete;
+    setPendingDelete(null);
+    if (!r) return;
     const { error } = await supabase.from("attendance").delete().eq("id", r.id);
     if (error) return toast.error(error.message);
     toast.success("Response deleted.");
     refresh();
   }
+
 
   return (
     <>
