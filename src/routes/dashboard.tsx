@@ -5,6 +5,7 @@ import { Trophy, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
 import { formatShortDate } from "@/lib/date-format";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 
 export const Route = createFileRoute("/dashboard")({
@@ -54,6 +55,7 @@ function Dashboard() {
   const [week, setWeek] = useState(isoWeekValue(new Date()));
   const [month, setMonth] = useState(thisMonthISO());
   const [loading, setLoading] = useState(true);
+  const [missingInfo, setMissingInfo] = useState<{ name: string; dates: string[] } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -178,8 +180,8 @@ function Dashboard() {
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Classrooms submitted today" value={`${summary.submitted}/${classrooms.filter(c=>c.active).length}`} />
-        <StatCard label="Before 07:20 (today)" value={summary.onTime} />
-        <StatCard label="07:20 – 08:20 (today)" value={summary.late} />
+        <StatCard label="Before 07:45 (today)" value={summary.onTime} />
+        <StatCard label="07:45 – 08:20 (today)" value={summary.late} />
         <StatCard label="On-time % (today)" value={`${summary.pct.toFixed(1)}%`} accent />
       </section>
 
@@ -237,8 +239,8 @@ function Dashboard() {
                 <th className="px-4 py-3">Rank</th>
                 <th className="px-4 py-3">Classroom</th>
                 <th className="px-4 py-3 text-right">On-time %</th>
-                <th className="px-4 py-3 text-right">Before 07:20</th>
-                <th className="px-4 py-3 text-right">07:20–08:20</th>
+                <th className="px-4 py-3 text-right">Before 07:45</th>
+                <th className="px-4 py-3 text-right">07:45–08:20</th>
                 <th className="px-4 py-3 text-right">Total present</th>
               </tr>
             </thead>
@@ -262,7 +264,7 @@ function Dashboard() {
                       {r.missing.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => alert(`${r.name} missing submissions on:\n\n${r.missing.map(formatShortDate).join("\n")}`)}
+                          onClick={() => setMissingInfo({ name: r.name, dates: r.missing })}
                           title={`Missing ${r.missing.length} day(s) — click for dates`}
                           className="inline-flex items-center text-amber-600 hover:text-amber-700"
                         >
@@ -284,6 +286,17 @@ function Dashboard() {
           </table>
         </div>
       </section>
+
+      <ConfirmDialog
+        open={!!missingInfo}
+        info
+        hideCancel
+        title={missingInfo ? `${missingInfo.name} — missing submissions` : ""}
+        message={missingInfo ? missingInfo.dates.map(formatShortDate).join("\n") : ""}
+        confirmLabel="OK"
+        onConfirm={() => setMissingInfo(null)}
+        onCancel={() => setMissingInfo(null)}
+      />
     </main>
   );
 }

@@ -137,7 +137,7 @@ function AttendanceForm() {
     const o = onTimeProvided ? Number(onTime) : NaN;
     const t = totalProvided ? Number(total) : NaN;
     if (onTimeProvided && (!Number.isInteger(o) || o < 0)) {
-      return toast.error("Before 07:20 must be a non-negative whole number.");
+      return toast.error("Before 07:45 must be a non-negative whole number.");
     }
     if (totalProvided && (!Number.isInteger(t) || t < 0)) {
       return toast.error("Total present must be a non-negative whole number.");
@@ -146,16 +146,16 @@ function AttendanceForm() {
     const prevOn = existing?.on_time_count ?? 0;
     const prevLate = existing?.late_count ?? null;
 
-    // Rule 1: cannot submit only the total without a 07:20 count already in the database.
+    // Rule 1: cannot submit only the total without a 07:45 count already in the database.
     if (totalProvided && !onTimeProvided && prevOn === 0) {
-      return toast.error("Enter the 07:20 count first — the 08:20 total can only be added after.");
+      return toast.error("Enter the 07:45 count first — the 08:20 total can only be added after.");
     }
 
     const nextOn = onTimeProvided ? o : prevOn;
     let nextLate: number | null;
     if (totalProvided) {
       if (nextOn > t) {
-        return toast.error("Before 07:20 cannot exceed total present.");
+        return toast.error("Before 07:45 cannot exceed total present.");
       }
       nextLate = t - nextOn;
     } else {
@@ -207,7 +207,6 @@ function AttendanceForm() {
             </div>
             <input
               type="text"
-              inputMode="numeric"
               autoComplete="off"
               value={code}
               onChange={(e) => setCode(e.target.value)}
@@ -222,7 +221,7 @@ function AttendanceForm() {
           )}
         </div>
 
-        <Field label="Students at 07:20">
+        <Field label="Students at 07:45">
           <input
             type="number" min={0} step={1} inputMode="numeric"
             value={onTime} onChange={(e) => setOnTime(e.target.value)}
@@ -247,7 +246,7 @@ function AttendanceForm() {
         </button>
 
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          Submit 07:20 first; you can add 08:20 later. Re-submitting updates today's record.
+          Submit 07:45 first; you can add 08:20 later. Re-submitting updates today's record.
         </p>
       </form>
 

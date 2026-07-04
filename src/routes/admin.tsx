@@ -5,6 +5,7 @@ import { Loader2, Pencil, Plus, Trash2, LogOut, History, ListChecks, School, Und
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
 import { formatShortDate } from "@/lib/date-format";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin — Morning Attendance" }] }),
@@ -114,6 +115,7 @@ function ClassroomsPanel() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Classroom | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Classroom | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -124,10 +126,10 @@ function ClassroomsPanel() {
   }
   useEffect(() => { refresh(); }, []);
 
-
-
-  async function remove(c: Classroom) {
-    if (!confirm(`Delete "${c.classroom_name}"? This also deletes its attendance history.`)) return;
+  async function confirmDelete() {
+    const c = pendingDelete;
+    setPendingDelete(null);
+    if (!c) return;
     const { error } = await supabase.from("classrooms").delete().eq("id", c.id);
     if (error) return toast.error(error.message);
     toast.success("Classroom deleted.");
@@ -164,7 +166,7 @@ function ClassroomsPanel() {
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-1">
                       <button onClick={() => { setEditing(c); setShowForm(true); }} className="rounded-lg p-2 hover:bg-accent" title="Edit"><Pencil className="h-4 w-4" /></button>
-                      <button onClick={() => remove(c)} className="rounded-lg p-2 text-destructive hover:bg-destructive/10" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                      <button onClick={() => setPendingDelete(c)} className="rounded-lg p-2 text-destructive hover:bg-destructive/10" title="Delete"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </td>
                 </tr>
@@ -176,6 +178,15 @@ function ClassroomsPanel() {
       {showForm && (
         <ClassroomDialog initial={editing} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); refresh(); }} />
       )}
+      <ConfirmDialog
+        open={!!pendingDelete}
+        destructive
+        title="Delete classroom?"
+        message={pendingDelete ? `"${pendingDelete.classroom_name}" and all of its attendance history will be deleted.` : ""}
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </>
   );
 }
@@ -237,6 +248,7 @@ function ResponsesPanel() {
   const [editing, setEditing] = useState<Attendance | null>(null);
   const [creating, setCreating] = useState(false);
   const [dateFilter, setDateFilter] = useState(todayISO());
+  const [pendingDelete, setPendingDelete] = useState<Attendance | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -256,13 +268,16 @@ function ResponsesPanel() {
     [rows, dateFilter],
   );
 
-  async function remove(r: Attendance) {
-    if (!confirm(`Delete this response (${nameById[r.classroom_id]} • ${formatShortDate(r.attendance_date)})?`)) return;
+  async function confirmDelete() {
+    const r = pendingDelete;
+    setPendingDelete(null);
+    if (!r) return;
     const { error } = await supabase.from("attendance").delete().eq("id", r.id);
     if (error) return toast.error(error.message);
     toast.success("Response deleted.");
     refresh();
   }
+
 
   return (
     <>
@@ -288,8 +303,8 @@ function ResponsesPanel() {
               <tr>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Classroom</th>
-                <th className="px-4 py-3 text-right">Before 07:20</th>
-                <th className="px-4 py-3 text-right">07:20–08:20</th>
+                <th className="px-4 py-3 text-right">Before 07:45</th>
+                <th className="px-4 py-3 text-right">07:45–08:20</th>
                 <th className="px-4 py-3 text-right">Total</th>
                 <th className="px-4 py-3">Submitted</th>
                 <th className="px-4 py-3">Last updated</th>
@@ -313,7 +328,7 @@ function ResponsesPanel() {
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex gap-1">
                       <button onClick={() => setEditing(r)} className="rounded-lg p-2 hover:bg-accent" title="Edit"><Pencil className="h-4 w-4" /></button>
-                      <button onClick={() => remove(r)} className="rounded-lg p-2 text-destructive hover:bg-destructive/10" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                      <button onClick={() => setPendingDelete(r)} className="rounded-lg p-2 text-destructive hover:bg-destructive/10" title="Delete"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </td>
                 </tr>
@@ -328,9 +343,21 @@ function ResponsesPanel() {
       {creating && (
         <NewResponseDialog classrooms={classrooms} onClose={() => setCreating(false)} onSaved={() => { setCreating(false); refresh(); }} />
       )}
+      <ConfirmDialog
+        open={!!pendingDelete}
+        destructive
+        title="Delete response?"
+        message={pendingDelete
+          ? `${nameById[pendingDelete.classroom_id] ?? "This response"} • ${formatShortDate(pendingDelete.attendance_date)} will be deleted.`
+          : ""}
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </>
   );
 }
+
 
 function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Classroom[]; onClose: () => void; onSaved: () => void }) {
   const sorted = useMemo(
@@ -344,27 +371,10 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
   const [onTime, setOnTime] = useState("");
   const [late, setLate] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingOverwrite, setPendingOverwrite] = useState<null | (() => Promise<void>)>(null);
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    if (!classroomId) return toast.error("Pick a classroom.");
-    if (!date) return toast.error("Pick a date.");
-    const o = onTime === "" ? 0 : Number(onTime);
-    const totalBlank = late === "";
-    const totalVal = totalBlank ? null : Number(late);
-    if (!Number.isInteger(o) || o < 0) return toast.error("Before 07:20 must be a non-negative whole number.");
-    if (totalVal !== null && (!Number.isInteger(totalVal) || totalVal < 0)) return toast.error("Total present must be a non-negative whole number.");
-    if (totalVal !== null && o > totalVal) return toast.error("Before 07:20 cannot exceed total present.");
-    const nextLate: number | null = totalVal === null ? null : totalVal - o;
+  async function doSave(o: number, nextLate: number | null) {
     setBusy(true);
-    const { data: existing } = await supabase.from("attendance")
-      .select("id, on_time_count, late_count")
-      .eq("classroom_id", classroomId).eq("attendance_date", date).maybeSingle();
-    if (existing && (existing.on_time_count !== o || existing.late_count !== nextLate)) {
-      if (!confirm(`A response already exists for ${formatShortDate(date)}. Overwrite it?`)) {
-        setBusy(false); return;
-      }
-    }
     const { error } = await supabase.from("attendance").upsert(
       { classroom_id: classroomId, attendance_date: date, on_time_count: o, late_count: nextLate },
       { onConflict: "classroom_id,attendance_date" },
@@ -374,6 +384,28 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
     toast.success("Response saved.");
     onSaved();
   }
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!classroomId) return toast.error("Pick a classroom.");
+    if (!date) return toast.error("Pick a date.");
+    const o = onTime === "" ? 0 : Number(onTime);
+    const totalBlank = late === "";
+    const totalVal = totalBlank ? null : Number(late);
+    if (!Number.isInteger(o) || o < 0) return toast.error("Before 07:45 must be a non-negative whole number.");
+    if (totalVal !== null && (!Number.isInteger(totalVal) || totalVal < 0)) return toast.error("Total present must be a non-negative whole number.");
+    if (totalVal !== null && o > totalVal) return toast.error("Before 07:45 cannot exceed total present.");
+    const nextLate: number | null = totalVal === null ? null : totalVal - o;
+    const { data: existing } = await supabase.from("attendance")
+      .select("id, on_time_count, late_count")
+      .eq("classroom_id", classroomId).eq("attendance_date", date).maybeSingle();
+    if (existing && (existing.on_time_count !== o || existing.late_count !== nextLate)) {
+      setPendingOverwrite(() => async () => { await doSave(o, nextLate); });
+      return;
+    }
+    await doSave(o, nextLate);
+  }
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/30 p-4 sm:items-center">
@@ -392,12 +424,12 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
         </label>
         <label className="mb-3 block">
-          <span className="mb-1.5 block text-sm font-medium">Before 07:20</span>
+          <span className="mb-1.5 block text-sm font-medium">Before 07:45</span>
           <input type="number" min={0} step={1} value={onTime} onChange={(e) => setOnTime(e.target.value)}
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
         </label>
         <label className="mb-4 block">
-          <span className="mb-1.5 block text-sm font-medium">Total present (07:20–08:20, incl. before)</span>
+          <span className="mb-1.5 block text-sm font-medium">Total present (07:45–08:20, incl. before)</span>
           <input type="number" min={0} step={1} value={late} onChange={(e) => setLate(e.target.value)}
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
         </label>
@@ -409,6 +441,18 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
           </button>
         </div>
       </form>
+      <ConfirmDialog
+        open={!!pendingOverwrite}
+        title="Overwrite existing response?"
+        message={`A response already exists for ${formatShortDate(date)}. Replacing it will overwrite the previous entry.`}
+        confirmLabel="Overwrite"
+        onCancel={() => setPendingOverwrite(null)}
+        onConfirm={async () => {
+          const fn = pendingOverwrite;
+          setPendingOverwrite(null);
+          if (fn) await fn();
+        }}
+      />
     </div>
   );
 }
@@ -423,8 +467,8 @@ function ResponseDialog({ row, onClose, onSaved }: { row: Attendance; onClose: (
     const o = Number(onTime);
     const lateBlank = late.trim() === "";
     const l = lateBlank ? null : Number(late);
-    if (!Number.isInteger(o) || o < 0) return toast.error("Before 07:20 must be a non-negative whole number.");
-    if (l !== null && (!Number.isInteger(l) || l < 0)) return toast.error("07:20–08:20 must be a non-negative whole number.");
+    if (!Number.isInteger(o) || o < 0) return toast.error("Before 07:45 must be a non-negative whole number.");
+    if (l !== null && (!Number.isInteger(l) || l < 0)) return toast.error("07:45–08:20 must be a non-negative whole number.");
     setBusy(true);
     const { error } = await supabase.from("attendance")
       .update({ on_time_count: o, late_count: l }).eq("id", row.id);
@@ -440,12 +484,12 @@ function ResponseDialog({ row, onClose, onSaved }: { row: Attendance; onClose: (
         <h2 className="text-lg font-semibold">Edit response</h2>
         <p className="mt-1 text-xs text-muted-foreground">{formatShortDate(row.attendance_date)}</p>
         <label className="mt-4 mb-3 block">
-          <span className="mb-1.5 block text-sm font-medium">Before 07:20</span>
+          <span className="mb-1.5 block text-sm font-medium">Before 07:45</span>
           <input type="number" min={0} step={1} value={onTime} onChange={(e) => setOnTime(e.target.value)} required
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
         </label>
         <label className="mb-4 block">
-          <span className="mb-1.5 block text-sm font-medium">Between 07:20–08:20</span>
+          <span className="mb-1.5 block text-sm font-medium">Between 07:45–08:20</span>
           <input type="number" min={0} step={1} value={late} onChange={(e) => setLate(e.target.value)}
             placeholder="Leave blank if not yet counted"
             className="h-11 w-full rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
@@ -469,6 +513,7 @@ function HistoryPanel() {
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState(todayISO());
+  const [pendingRevert, setPendingRevert] = useState<HistoryRow | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -488,9 +533,10 @@ function HistoryPanel() {
     [rows, dateFilter],
   );
 
-  async function revert(r: HistoryRow) {
-    const name = nameById[r.classroom_id] ?? "this classroom";
-    if (!confirm(`Revert ${name} on ${formatShortDate(r.attendance_date)} to: before 07:20 = ${r.on_time_count}, 07:20–08:20 = ${r.late_count}?`)) return;
+  async function confirmRevert() {
+    const r = pendingRevert;
+    setPendingRevert(null);
+    if (!r) return;
     const { error } = await supabase.from("attendance").upsert(
       {
         classroom_id: r.classroom_id,
@@ -504,6 +550,7 @@ function HistoryPanel() {
     toast.success("Reverted to this version.");
     refresh();
   }
+
 
   return (
     <>
@@ -525,8 +572,8 @@ function HistoryPanel() {
                 <th className="px-4 py-3">Action</th>
                 <th className="px-4 py-3">Classroom</th>
                 <th className="px-4 py-3">For date</th>
-                <th className="px-4 py-3 text-right">Before 07:20</th>
-                <th className="px-4 py-3 text-right">07:20–08:20</th>
+                <th className="px-4 py-3 text-right">Before 07:45</th>
+                <th className="px-4 py-3 text-right">07:45–08:20</th>
                 <th className="px-4 py-3 text-right">Total</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -553,7 +600,7 @@ function HistoryPanel() {
                   <td className="px-4 py-3 text-right">{r.late_count == null ? "—" : r.late_count}</td>
                   <td className="px-4 py-3 text-right">{r.late_count == null ? "—" : r.on_time_count + r.late_count}</td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => revert(r)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent" title="Restore this version">
+                    <button onClick={() => setPendingRevert(r)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent" title="Restore this version">
                       <Undo2 className="h-3.5 w-3.5" /> Revert
                     </button>
                   </td>
@@ -563,6 +610,16 @@ function HistoryPanel() {
         </table>
       </div>
     </section>
+    <ConfirmDialog
+      open={!!pendingRevert}
+      title="Revert to this version?"
+      message={pendingRevert
+        ? `${nameById[pendingRevert.classroom_id] ?? "This classroom"} on ${formatShortDate(pendingRevert.attendance_date)} will be set to: before 07:45 = ${pendingRevert.on_time_count}, 07:45–08:20 = ${pendingRevert.late_count ?? "—"}.`
+        : ""}
+      confirmLabel="Revert"
+      onConfirm={confirmRevert}
+      onCancel={() => setPendingRevert(null)}
+    />
     </>
   );
 }
@@ -585,6 +642,9 @@ function ActionBadge({ action }: { action: string }) {
   }
   if (action === "submit") {
     return <span className="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Submitted</span>;
+  }
+  if (action === "delete") {
+    return <span className="inline-flex rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive">Deleted</span>;
   }
   return <span className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">Overwritten</span>;
 }
