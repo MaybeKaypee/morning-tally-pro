@@ -610,6 +610,16 @@ function HistoryPanel() {
         </table>
       </div>
     </section>
+    <ConfirmDialog
+      open={!!pendingRevert}
+      title="Revert to this version?"
+      message={pendingRevert
+        ? `${nameById[pendingRevert.classroom_id] ?? "This classroom"} on ${formatShortDate(pendingRevert.attendance_date)} will be set to: before 07:45 = ${pendingRevert.on_time_count}, 07:45–08:20 = ${pendingRevert.late_count ?? "—"}.`
+        : ""}
+      confirmLabel="Revert"
+      onConfirm={confirmRevert}
+      onCancel={() => setPendingRevert(null)}
+    />
     </>
   );
 }
