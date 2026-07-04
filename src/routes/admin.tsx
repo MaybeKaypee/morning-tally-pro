@@ -533,9 +533,10 @@ function HistoryPanel() {
     [rows, dateFilter],
   );
 
-  async function revert(r: HistoryRow) {
-    const name = nameById[r.classroom_id] ?? "this classroom";
-    if (!confirm(`Revert ${name} on ${formatShortDate(r.attendance_date)} to: before 07:45 = ${r.on_time_count}, 07:45–08:20 = ${r.late_count}?`)) return;
+  async function confirmRevert() {
+    const r = pendingRevert;
+    setPendingRevert(null);
+    if (!r) return;
     const { error } = await supabase.from("attendance").upsert(
       {
         classroom_id: r.classroom_id,
@@ -549,6 +550,7 @@ function HistoryPanel() {
     toast.success("Reverted to this version.");
     refresh();
   }
+
 
   return (
     <>
