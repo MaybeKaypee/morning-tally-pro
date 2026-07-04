@@ -239,8 +239,8 @@ function Dashboard() {
                 <th className="px-4 py-3">Rank</th>
                 <th className="px-4 py-3">Classroom</th>
                 <th className="px-4 py-3 text-right">On-time %</th>
-                <th className="px-4 py-3 text-right">Before 07:20</th>
-                <th className="px-4 py-3 text-right">07:20–08:20</th>
+                <th className="px-4 py-3 text-right">Before 07:45</th>
+                <th className="px-4 py-3 text-right">07:45–08:20</th>
                 <th className="px-4 py-3 text-right">Total present</th>
               </tr>
             </thead>
