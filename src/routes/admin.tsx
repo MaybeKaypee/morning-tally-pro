@@ -441,6 +441,18 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
           </button>
         </div>
       </form>
+      <ConfirmDialog
+        open={!!pendingOverwrite}
+        title="Overwrite existing response?"
+        message={`A response already exists for ${formatShortDate(date)}. Replacing it will overwrite the previous entry.`}
+        confirmLabel="Overwrite"
+        onCancel={() => setPendingOverwrite(null)}
+        onConfirm={async () => {
+          const fn = pendingOverwrite;
+          setPendingOverwrite(null);
+          if (fn) await fn();
+        }}
+      />
     </div>
   );
 }
