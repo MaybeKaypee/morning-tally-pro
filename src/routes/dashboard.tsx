@@ -286,6 +286,17 @@ function Dashboard() {
           </table>
         </div>
       </section>
+
+      <ConfirmDialog
+        open={!!missingInfo}
+        info
+        hideCancel
+        title={missingInfo ? `${missingInfo.name} — missing submissions` : ""}
+        message={missingInfo ? missingInfo.dates.map(formatShortDate).join("\n") : ""}
+        confirmLabel="OK"
+        onConfirm={() => setMissingInfo(null)}
+        onCancel={() => setMissingInfo(null)}
+      />
     </main>
   );
 }
