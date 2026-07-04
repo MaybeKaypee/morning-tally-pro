@@ -178,6 +178,15 @@ function ClassroomsPanel() {
       {showForm && (
         <ClassroomDialog initial={editing} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); refresh(); }} />
       )}
+      <ConfirmDialog
+        open={!!pendingDelete}
+        destructive
+        title="Delete classroom?"
+        message={pendingDelete ? `"${pendingDelete.classroom_name}" and all of its attendance history will be deleted.` : ""}
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </>
   );
 }
