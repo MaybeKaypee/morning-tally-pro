@@ -115,6 +115,7 @@ function ClassroomsPanel() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Classroom | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Classroom | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -125,10 +126,10 @@ function ClassroomsPanel() {
   }
   useEffect(() => { refresh(); }, []);
 
-
-
-  async function remove(c: Classroom) {
-    if (!confirm(`Delete "${c.classroom_name}"? This also deletes its attendance history.`)) return;
+  async function confirmDelete() {
+    const c = pendingDelete;
+    setPendingDelete(null);
+    if (!c) return;
     const { error } = await supabase.from("classrooms").delete().eq("id", c.id);
     if (error) return toast.error(error.message);
     toast.success("Classroom deleted.");
