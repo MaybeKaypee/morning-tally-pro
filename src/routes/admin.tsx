@@ -5,6 +5,7 @@ import { Loader2, Pencil, Plus, Trash2, LogOut, History, ListChecks, School, Und
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
 import { formatShortDate } from "@/lib/date-format";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin — Morning Attendance" }] }),
