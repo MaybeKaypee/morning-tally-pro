@@ -371,6 +371,19 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
   const [onTime, setOnTime] = useState("");
   const [late, setLate] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingOverwrite, setPendingOverwrite] = useState<null | (() => Promise<void>)>(null);
+
+  async function doSave(o: number, nextLate: number | null) {
+    setBusy(true);
+    const { error } = await supabase.from("attendance").upsert(
+      { classroom_id: classroomId, attendance_date: date, on_time_count: o, late_count: nextLate },
+      { onConflict: "classroom_id,attendance_date" },
+    );
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Response saved.");
+    onSaved();
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -383,24 +396,16 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
     if (totalVal !== null && (!Number.isInteger(totalVal) || totalVal < 0)) return toast.error("Total present must be a non-negative whole number.");
     if (totalVal !== null && o > totalVal) return toast.error("Before 07:45 cannot exceed total present.");
     const nextLate: number | null = totalVal === null ? null : totalVal - o;
-    setBusy(true);
     const { data: existing } = await supabase.from("attendance")
       .select("id, on_time_count, late_count")
       .eq("classroom_id", classroomId).eq("attendance_date", date).maybeSingle();
     if (existing && (existing.on_time_count !== o || existing.late_count !== nextLate)) {
-      if (!confirm(`A response already exists for ${formatShortDate(date)}. Overwrite it?`)) {
-        setBusy(false); return;
-      }
+      setPendingOverwrite(() => () => doSave(o, nextLate));
+      return;
     }
-    const { error } = await supabase.from("attendance").upsert(
-      { classroom_id: classroomId, attendance_date: date, on_time_count: o, late_count: nextLate },
-      { onConflict: "classroom_id,attendance_date" },
-    );
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success("Response saved.");
-    onSaved();
+    await doSave(o, nextLate);
   }
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/30 p-4 sm:items-center">
