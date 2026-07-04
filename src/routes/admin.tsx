@@ -513,6 +513,7 @@ function HistoryPanel() {
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState(todayISO());
+  const [pendingRevert, setPendingRevert] = useState<HistoryRow | null>(null);
 
   async function refresh() {
     setLoading(true);
