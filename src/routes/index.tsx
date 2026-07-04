@@ -221,7 +221,7 @@ function AttendanceForm() {
           )}
         </div>
 
-        <Field label="Students at 07:20">
+        <Field label="Students at 07:45">
           <input
             type="number" min={0} step={1} inputMode="numeric"
             value={onTime} onChange={(e) => setOnTime(e.target.value)}
