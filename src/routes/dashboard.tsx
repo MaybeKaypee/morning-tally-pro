@@ -180,8 +180,8 @@ function Dashboard() {
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Classrooms submitted today" value={`${summary.submitted}/${classrooms.filter(c=>c.active).length}`} />
-        <StatCard label="Before 07:20 (today)" value={summary.onTime} />
-        <StatCard label="07:20 – 08:20 (today)" value={summary.late} />
+        <StatCard label="Before 07:45 (today)" value={summary.onTime} />
+        <StatCard label="07:45 – 08:20 (today)" value={summary.late} />
         <StatCard label="On-time % (today)" value={`${summary.pct.toFixed(1)}%`} accent />
       </section>
 
