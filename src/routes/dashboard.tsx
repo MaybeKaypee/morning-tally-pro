@@ -5,6 +5,7 @@ import { Trophy, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
 import { formatShortDate } from "@/lib/date-format";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 
 export const Route = createFileRoute("/dashboard")({
