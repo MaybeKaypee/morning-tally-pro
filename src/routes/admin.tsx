@@ -600,7 +600,7 @@ function HistoryPanel() {
                   <td className="px-4 py-3 text-right">{r.late_count == null ? "—" : r.late_count}</td>
                   <td className="px-4 py-3 text-right">{r.late_count == null ? "—" : r.on_time_count + r.late_count}</td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => revert(r)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent" title="Restore this version">
+                    <button onClick={() => setPendingRevert(r)} className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs hover:bg-accent" title="Restore this version">
                       <Undo2 className="h-3.5 w-3.5" /> Revert
                     </button>
                   </td>
