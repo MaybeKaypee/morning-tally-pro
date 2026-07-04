@@ -246,7 +246,7 @@ function AttendanceForm() {
         </button>
 
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          Submit 07:20 first; you can add 08:20 later. Re-submitting updates today's record.
+          Submit 07:45 first; you can add 08:20 later. Re-submitting updates today's record.
         </p>
       </form>
 
