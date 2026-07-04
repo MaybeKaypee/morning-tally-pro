@@ -400,7 +400,7 @@ function NewResponseDialog({ classrooms, onClose, onSaved }: { classrooms: Class
       .select("id, on_time_count, late_count")
       .eq("classroom_id", classroomId).eq("attendance_date", date).maybeSingle();
     if (existing && (existing.on_time_count !== o || existing.late_count !== nextLate)) {
-      setPendingOverwrite(() => () => doSave(o, nextLate));
+      setPendingOverwrite(() => async () => { await doSave(o, nextLate); });
       return;
     }
     await doSave(o, nextLate);
