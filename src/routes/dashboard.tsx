@@ -319,7 +319,7 @@ function Dashboard() {
                           title="Suspicious submission pattern — click for details"
                           className="inline-flex items-center text-red-600 hover:text-red-700"
                         >
-                          <Flag className="h-4 w-4 fill-current" />
+                          <Flag className="h-4 w-4" />
                         </button>
                       )}
                     </div>
@@ -358,7 +358,7 @@ function Dashboard() {
           <div className="space-y-3">
             {flagInfo.earlyDates.length > 0 && (
               <div>
-                <div className="font-medium text-foreground">Both values submitted before 08:20 (no later edit):</div>
+                <div className="font-medium text-foreground">Both values submitted before 08:20:</div>
                 <ul className="mt-1 list-disc pl-5">
                   {flagInfo.earlyDates.map((d) => <li key={d}>{formatShortDate(d)}</li>)}
                 </ul>
