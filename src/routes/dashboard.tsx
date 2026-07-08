@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Trophy, AlertTriangle } from "lucide-react";
+import { Trophy, AlertTriangle, Flag } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
 import { formatShortDate } from "@/lib/date-format";
@@ -20,6 +20,7 @@ export const Route = createFileRoute("/dashboard")({
 
 type Classroom = { id: string; classroom_name: string; active: boolean };
 type Attendance = { classroom_id: string; attendance_date: string; on_time_count: number; late_count: number | null };
+type HistoryRow = { classroom_id: string; attendance_date: string; on_time_count: number; late_count: number | null; action: string; changed_at: string };
 type Range = "day" | "week" | "month" | "all";
 
 function toISO(d: Date) {
@@ -47,25 +48,36 @@ function weekValueToMonday(v: string) {
   return new Date(mon.getUTCFullYear(), mon.getUTCMonth(), mon.getUTCDate());
 }
 
+// Minutes since midnight, local time
+function minsOfDay(ts: string) {
+  const d = new Date(ts);
+  return d.getHours() * 60 + d.getMinutes();
+}
+const CUTOFF_MIN = 8 * 60 + 20; // 08:20 local
+
 function Dashboard() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [records, setRecords] = useState<Attendance[]>([]);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
   const [range, setRange] = useState<Range>("day");
   const [day, setDay] = useState(todayISO());
   const [week, setWeek] = useState(isoWeekValue(new Date()));
   const [month, setMonth] = useState(thisMonthISO());
   const [loading, setLoading] = useState(true);
   const [missingInfo, setMissingInfo] = useState<{ name: string; dates: string[] } | null>(null);
+  const [flagInfo, setFlagInfo] = useState<{ name: string; earlyDates: string[]; perfectDates: string[] } | null>(null);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [cr, ar] = await Promise.all([
+      const [cr, ar, hr] = await Promise.all([
         supabase.from("classrooms").select("id, classroom_name, active"),
         supabase.from("attendance").select("classroom_id, attendance_date, on_time_count, late_count"),
+        supabase.from("attendance_history").select("classroom_id, attendance_date, on_time_count, late_count, action, changed_at").limit(5000),
       ]);
       setClassrooms(cr.data ?? []);
       setRecords((ar.data ?? []) as Attendance[]);
+      setHistory((hr.data ?? []) as HistoryRow[]);
       setLoading(false);
     })();
   }, []);
@@ -107,20 +119,46 @@ function Dashboard() {
     return out;
   }, [range, from, to]);
 
+  // Suspicious "early submit" detection per (classroom, date):
+  // Any history row with late_count != null and changed_at < 08:20 local,
+  // AND no history row for that (class, date) at time >= 08:20.
+  const earlySubmitByClass = useMemo(() => {
+    const byKey: Record<string, HistoryRow[]> = {};
+    for (const h of history) {
+      if (h.attendance_date < from || h.attendance_date > to) continue;
+      const k = `${h.classroom_id}|${h.attendance_date}`;
+      (byKey[k] ||= []).push(h);
+    }
+    const out: Record<string, Set<string>> = {};
+    for (const k in byKey) {
+      const rows = byKey[k];
+      const complete = rows.filter((r) => r.late_count != null && r.action !== "delete");
+      if (complete.length === 0) continue;
+      const anyEarly = complete.some((r) => minsOfDay(r.changed_at) < CUTOFF_MIN);
+      const anyAfter = rows.some((r) => r.action !== "delete" && minsOfDay(r.changed_at) >= CUTOFF_MIN);
+      if (anyEarly && !anyAfter) {
+        const [cid, date] = k.split("|");
+        (out[cid] ||= new Set()).add(date);
+      }
+    }
+    return out;
+  }, [history, from, to]);
+
   const rows = useMemo(() => {
     const byClass: Record<string, {
       onTime: number; total: number; pctSum: number; n: number;
-      completeDates: Set<string>; anyDates: Set<string>; hasIncomplete: boolean;
+      completeDates: Set<string>; hasIncomplete: boolean;
+      perfectDates: Set<string>;
     }> = {};
     for (const r of filtered) {
       const entry = (byClass[r.classroom_id] ||= {
         onTime: 0, total: 0, pctSum: 0, n: 0,
-        completeDates: new Set(), anyDates: new Set(), hasIncomplete: false,
+        completeDates: new Set(), hasIncomplete: false,
+        perfectDates: new Set(),
       });
-      entry.anyDates.add(r.attendance_date);
       if (r.late_count == null) {
         entry.hasIncomplete = true;
-        continue; // incomplete: skip in ranking math
+        continue; // incomplete: skip in ranking math AND treat as not submitted
       }
       const denom = r.on_time_count + r.late_count;
       entry.completeDates.add(r.attendance_date);
@@ -129,6 +167,7 @@ function Dashboard() {
       entry.total += denom;
       entry.pctSum += (r.on_time_count / denom) * 100;
       entry.n += 1;
+      if (r.on_time_count > 0 && r.late_count === 0) entry.perfectDates.add(r.attendance_date);
     }
     return classrooms
       .filter((c) => c.active || byClass[c.id])
@@ -139,15 +178,18 @@ function Dashboard() {
         const total = b?.total ?? 0;
         const late = total - onTime;
         const pct = complete ? (range === "day" ? (total > 0 ? (onTime / total) * 100 : 0) : b!.pctSum / b!.n) : 0;
-        const missing = expectedDates.filter((d) => !b?.anyDates.has(d));
-        // "onTime only" preview (day view) when incomplete
+        // "missing" now includes days that were only partially submitted (incomplete)
+        const missing = expectedDates.filter((d) => !b?.completeDates.has(d));
         const dayRecord = range === "day" ? filtered.find((r) => r.classroom_id === c.id) : undefined;
         const displayOnTime = complete ? onTime : (dayRecord?.on_time_count ?? 0);
+        const earlyDates = Array.from(earlySubmitByClass[c.id] ?? []).sort();
+        const perfectDates = Array.from(b?.perfectDates ?? []).sort();
+        const flag = earlyDates.length > 0 || perfectDates.length >= 2;
         return {
           id: c.id, name: c.classroom_name,
           onTime: displayOnTime, late, total, pct,
-          complete, hasAny: !!b,
-          missing,
+          complete, hasAny: !!b && (b.n > 0 || b.hasIncomplete),
+          missing, flag, earlyDates, perfectDates,
         };
       })
       .sort((a, b) => {
@@ -155,18 +197,17 @@ function Dashboard() {
         if (a.complete) return b.pct - a.pct;
         return classroomCompare(a.name, b.name);
       });
-  }, [filtered, classrooms, range, expectedDates]);
+  }, [filtered, classrooms, range, expectedDates, earlySubmitByClass]);
 
 
   const todays = useMemo(() => records.filter((r) => r.attendance_date === todayISO()), [records]);
   const summary = useMemo(() => {
-    const onTime = todays.reduce((s, r) => s + r.on_time_count, 0);
-    const late = todays.reduce((s, r) => s + (r.late_count ?? 0), 0);
     const complete = todays.filter((r) => r.late_count != null);
-    const total = complete.reduce((s, r) => s + r.on_time_count + (r.late_count ?? 0), 0);
-    const onTimeC = complete.reduce((s, r) => s + r.on_time_count, 0);
-    const pct = total > 0 ? (onTimeC / total) * 100 : 0;
-    return { submitted: new Set(todays.map((r) => r.classroom_id)).size, onTime, late, pct };
+    const onTime = complete.reduce((s, r) => s + r.on_time_count, 0);
+    const late = complete.reduce((s, r) => s + (r.late_count ?? 0), 0);
+    const total = onTime + late;
+    const pct = total > 0 ? (onTime / total) * 100 : 0;
+    return { submitted: complete.length, onTime, late, pct };
   }, [todays]);
 
   return (
@@ -271,13 +312,23 @@ function Dashboard() {
                           <AlertTriangle className="h-4 w-4" />
                         </button>
                       )}
+                      {r.flag && (
+                        <button
+                          type="button"
+                          onClick={() => setFlagInfo({ name: r.name, earlyDates: r.earlyDates, perfectDates: r.perfectDates })}
+                          title="Suspicious submission pattern — click for details"
+                          className="inline-flex items-center text-red-600 hover:text-red-700"
+                        >
+                          <Flag className="h-4 w-4 fill-current" />
+                        </button>
+                      )}
                     </div>
                   </td>
 
                   <td className="px-4 py-3 text-right font-semibold text-primary">
                     {r.complete ? `${r.pct.toFixed(1)}%` : <span className="text-muted-foreground font-normal">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-right">{r.hasAny ? r.onTime : "—"}</td>
+                  <td className="px-4 py-3 text-right">{r.complete ? r.onTime : "—"}</td>
                   <td className="px-4 py-3 text-right">{r.complete ? r.late : "—"}</td>
                   <td className="px-4 py-3 text-right">{r.complete ? r.total : "—"}</td>
                 </tr>
@@ -296,6 +347,36 @@ function Dashboard() {
         confirmLabel="OK"
         onConfirm={() => setMissingInfo(null)}
         onCancel={() => setMissingInfo(null)}
+      />
+
+      <ConfirmDialog
+        open={!!flagInfo}
+        info
+        hideCancel
+        title={flagInfo ? `${flagInfo.name} — flagged pattern` : ""}
+        message={flagInfo ? (
+          <div className="space-y-3">
+            {flagInfo.earlyDates.length > 0 && (
+              <div>
+                <div className="font-medium text-foreground">Both values submitted before 08:20 (no later edit):</div>
+                <ul className="mt-1 list-disc pl-5">
+                  {flagInfo.earlyDates.map((d) => <li key={d}>{formatShortDate(d)}</li>)}
+                </ul>
+              </div>
+            )}
+            {flagInfo.perfectDates.length >= 2 && (
+              <div>
+                <div className="font-medium text-foreground">Days with 100% on-time:</div>
+                <ul className="mt-1 list-disc pl-5">
+                  {flagInfo.perfectDates.map((d) => <li key={d}>{formatShortDate(d)}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : ""}
+        confirmLabel="OK"
+        onConfirm={() => setFlagInfo(null)}
+        onCancel={() => setFlagInfo(null)}
       />
     </main>
   );
