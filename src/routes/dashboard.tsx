@@ -319,7 +319,7 @@ function Dashboard() {
                           title="Suspicious submission pattern — click for details"
                           className="inline-flex items-center text-red-600 hover:text-red-700"
                         >
-                          <Flag className="h-4 w-4 fill-current" />
+                          <Flag className="h-4 w-4" />
                         </button>
                       )}
                     </div>
