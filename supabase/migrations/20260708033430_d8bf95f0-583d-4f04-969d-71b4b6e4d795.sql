@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS trg_attendance_history ON public.attendance;
