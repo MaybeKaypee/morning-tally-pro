@@ -91,11 +91,13 @@ function AdminPage() {
         <TabButton active={tab === "classrooms"} onClick={() => setTab("classrooms")} icon={<School className="h-4 w-4" />}>Classrooms</TabButton>
         <TabButton active={tab === "responses"} onClick={() => setTab("responses")} icon={<ListChecks className="h-4 w-4" />}>Responses</TabButton>
         <TabButton active={tab === "history"} onClick={() => setTab("history")} icon={<History className="h-4 w-4" />}>History</TabButton>
+        <TabButton active={tab === "settings"} onClick={() => setTab("settings")} icon={<SettingsIcon className="h-4 w-4" />}>Settings</TabButton>
       </div>
 
       {tab === "classrooms" && <ClassroomsPanel />}
       {tab === "responses" && <ResponsesPanel />}
       {tab === "history" && <HistoryPanel />}
+      {tab === "settings" && <SettingsPanel />}
     </main>
   );
 }
