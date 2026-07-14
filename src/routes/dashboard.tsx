@@ -53,6 +53,8 @@ function minsOfDay(ts: string) {
   const d = new Date(ts);
   return d.getHours() * 60 + d.getMinutes();
 }
+type Settings = { show_warning: boolean; show_flag: boolean; flag_cutoff_minutes: number; flag_perfect_threshold: number };
+const DEFAULT_SETTINGS: Settings = { show_warning: true, show_flag: true, flag_cutoff_minutes: 500, flag_perfect_threshold: 2 };
 const CUTOFF_MIN = 8 * 60 + 20; // 08:20 local
 
 function Dashboard() {
@@ -66,18 +68,21 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [missingInfo, setMissingInfo] = useState<{ name: string; dates: string[] } | null>(null);
   const [flagInfo, setFlagInfo] = useState<{ name: string; earlyDates: string[]; perfectDates: string[] } | null>(null);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [cr, ar, hr] = await Promise.all([
+      const [cr, ar, hr, sr] = await Promise.all([
         supabase.from("classrooms").select("id, classroom_name, active"),
         supabase.from("attendance").select("classroom_id, attendance_date, on_time_count, late_count"),
         supabase.from("attendance_history").select("classroom_id, attendance_date, on_time_count, late_count, action, changed_at").limit(5000),
+        supabase.from("dashboard_settings" as never).select("show_warning, show_flag, flag_cutoff_minutes, flag_perfect_threshold").maybeSingle(),
       ]);
       setClassrooms(cr.data ?? []);
       setRecords((ar.data ?? []) as Attendance[]);
       setHistory((hr.data ?? []) as HistoryRow[]);
+      if (sr.data) setSettings(sr.data as Settings);
       setLoading(false);
     })();
   }, []);
@@ -134,15 +139,15 @@ function Dashboard() {
       const rows = byKey[k];
       const complete = rows.filter((r) => r.late_count != null && r.action !== "delete");
       if (complete.length === 0) continue;
-      const anyEarly = complete.some((r) => minsOfDay(r.changed_at) < CUTOFF_MIN);
-      const anyAfter = rows.some((r) => r.action !== "delete" && minsOfDay(r.changed_at) >= CUTOFF_MIN);
+      const anyEarly = complete.some((r) => minsOfDay(r.changed_at) < settings.flag_cutoff_minutes);
+      const anyAfter = rows.some((r) => r.action !== "delete" && minsOfDay(r.changed_at) >= settings.flag_cutoff_minutes);
       if (anyEarly && !anyAfter) {
         const [cid, date] = k.split("|");
         (out[cid] ||= new Set()).add(date);
       }
     }
     return out;
-  }, [history, from, to]);
+  }, [history, from, to, settings.flag_cutoff_minutes]);
 
   const rows = useMemo(() => {
     const byClass: Record<string, {
@@ -184,7 +189,7 @@ function Dashboard() {
         const displayOnTime = complete ? onTime : (dayRecord?.on_time_count ?? 0);
         const earlyDates = Array.from(earlySubmitByClass[c.id] ?? []).sort();
         const perfectDates = Array.from(b?.perfectDates ?? []).sort();
-        const flag = earlyDates.length > 0 || perfectDates.length >= 2;
+        const flag = range === "week" && settings.show_flag && (earlyDates.length > 0 || perfectDates.length >= settings.flag_perfect_threshold);
         return {
           id: c.id, name: c.classroom_name,
           onTime: displayOnTime, late, total, pct,
@@ -302,7 +307,7 @@ function Dashboard() {
                   <td className="px-4 py-3 font-medium">
                     <div className="flex items-center gap-2">
                       <span>{r.name}</span>
-                      {r.missing.length > 0 && (
+                      {settings.show_warning && range === "week" && r.missing.length > 0 && (
                         <button
                           type="button"
                           onClick={() => setMissingInfo({ name: r.name, dates: r.missing })}

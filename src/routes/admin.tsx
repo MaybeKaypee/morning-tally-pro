@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Pencil, Plus, Trash2, LogOut, History, ListChecks, School, Undo2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, LogOut, History, ListChecks, School, Undo2, Settings as SettingsIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
 import { formatShortDate } from "@/lib/date-format";
@@ -34,7 +34,7 @@ type HistoryRow = {
   changed_by: string | null;
 };
 
-type Tab = "classrooms" | "responses" | "history";
+type Tab = "classrooms" | "responses" | "history" | "settings";
 
 function AdminPage() {
   const navigate = useNavigate();
@@ -91,11 +91,13 @@ function AdminPage() {
         <TabButton active={tab === "classrooms"} onClick={() => setTab("classrooms")} icon={<School className="h-4 w-4" />}>Classrooms</TabButton>
         <TabButton active={tab === "responses"} onClick={() => setTab("responses")} icon={<ListChecks className="h-4 w-4" />}>Responses</TabButton>
         <TabButton active={tab === "history"} onClick={() => setTab("history")} icon={<History className="h-4 w-4" />}>History</TabButton>
+        <TabButton active={tab === "settings"} onClick={() => setTab("settings")} icon={<SettingsIcon className="h-4 w-4" />}>Settings</TabButton>
       </div>
 
       {tab === "classrooms" && <ClassroomsPanel />}
       {tab === "responses" && <ResponsesPanel />}
       {tab === "history" && <HistoryPanel />}
+      {tab === "settings" && <SettingsPanel />}
     </main>
   );
 }
@@ -647,4 +649,105 @@ function ActionBadge({ action }: { action: string }) {
     return <span className="inline-flex rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive">Deleted</span>;
   }
   return <span className="inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">Overwritten</span>;
+}
+
+
+/* -------- Settings -------- */
+
+type DashSettings = { show_warning: boolean; show_flag: boolean; flag_cutoff_minutes: number; flag_perfect_threshold: number };
+
+function SettingsPanel() {
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [s, setS] = useState<DashSettings>({ show_warning: true, show_flag: true, flag_cutoff_minutes: 500, flag_perfect_threshold: 2 });
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("dashboard_settings" as never)
+        .select("show_warning, show_flag, flag_cutoff_minutes, flag_perfect_threshold")
+        .maybeSingle();
+      if (data) setS(data as DashSettings);
+      setLoading(false);
+    })();
+  }, []);
+
+  function hhmmFromMin(m: number) {
+    const h = Math.floor(m / 60), mm = m % 60;
+    return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  }
+  function minFromHhmm(v: string) {
+    const [h, m] = v.split(":").map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+
+  async function save() {
+    setBusy(true);
+    const { error } = await supabase
+      .from("dashboard_settings" as never)
+      .update(s as never)
+      .eq("id", true as never);
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Settings saved.");
+  }
+
+  if (loading) {
+    return <div className="rounded-2xl border bg-card p-6 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></div>;
+  }
+
+  return (
+    <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+      <h2 className="text-base font-semibold">Dashboard flags & warnings</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Control whether the weekly leaderboard shows the missing-day warning and the suspicious-pattern flag, and tune the flag thresholds.</p>
+
+      <div className="mt-5 space-y-4">
+        <label className="flex items-center justify-between gap-4 rounded-xl border p-3">
+          <div>
+            <div className="text-sm font-medium">Show missing-day warning</div>
+            <div className="text-xs text-muted-foreground">Amber icon on classrooms that missed a weekday in the selected week.</div>
+          </div>
+          <input type="checkbox" checked={s.show_warning} onChange={(e) => setS({ ...s, show_warning: e.target.checked })} className="h-5 w-5" />
+        </label>
+
+        <label className="flex items-center justify-between gap-4 rounded-xl border p-3">
+          <div>
+            <div className="text-sm font-medium">Show suspicious-pattern flag</div>
+            <div className="text-xs text-muted-foreground">Red flag icon for early-submit or repeated 100% days.</div>
+          </div>
+          <input type="checkbox" checked={s.show_flag} onChange={(e) => setS({ ...s, show_flag: e.target.checked })} className="h-5 w-5" />
+        </label>
+
+        <div className="rounded-xl border p-3">
+          <div className="text-sm font-medium">Flag cutoff time</div>
+          <div className="text-xs text-muted-foreground">Submissions completed strictly before this time (with no later edit) count as early.</div>
+          <input
+            type="time"
+            value={hhmmFromMin(s.flag_cutoff_minutes)}
+            onChange={(e) => setS({ ...s, flag_cutoff_minutes: minFromHhmm(e.target.value) })}
+            className="mt-2 h-10 rounded-xl border bg-background px-3 text-sm"
+          />
+        </div>
+
+        <div className="rounded-xl border p-3">
+          <div className="text-sm font-medium">100% days threshold (per week)</div>
+          <div className="text-xs text-muted-foreground">Number of 100% on-time days in a week that triggers the flag.</div>
+          <input
+            type="number"
+            min={1}
+            value={s.flag_perfect_threshold}
+            onChange={(e) => setS({ ...s, flag_perfect_threshold: Math.max(1, Number(e.target.value) || 1) })}
+            className="mt-2 h-10 w-28 rounded-xl border bg-background px-3 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="mt-5 flex justify-end">
+        <button onClick={save} disabled={busy} className="flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+          Save settings
+        </button>
+      </div>
+    </section>
+  );
 }
