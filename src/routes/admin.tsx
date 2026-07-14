@@ -34,7 +34,7 @@ type HistoryRow = {
   changed_by: string | null;
 };
 
-type Tab = "classrooms" | "responses" | "history";
+type Tab = "classrooms" | "responses" | "history" | "settings";
 
 function AdminPage() {
   const navigate = useNavigate();
