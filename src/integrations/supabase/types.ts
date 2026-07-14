@@ -115,6 +115,48 @@ export type Database = {
         }
         Relationships: []
       }
+      dashboard_settings: {
+        Row: {
+          flag_cutoff_minutes: number
+          flag_perfect_threshold: number
+          id: boolean
+          show_flag: boolean
+          show_warning: boolean
+          updated_at: string
+        }
+        Insert: {
+          flag_cutoff_minutes?: number
+          flag_perfect_threshold?: number
+          id?: boolean
+          show_flag?: boolean
+          show_warning?: boolean
+          updated_at?: string
+        }
+        Update: {
+          flag_cutoff_minutes?: number
+          flag_perfect_threshold?: number
+          id?: boolean
+          show_flag?: boolean
+          show_warning?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      heartbeat: {
+        Row: {
+          created_at: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string

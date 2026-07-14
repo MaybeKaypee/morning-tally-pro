@@ -53,6 +53,8 @@ function minsOfDay(ts: string) {
   const d = new Date(ts);
   return d.getHours() * 60 + d.getMinutes();
 }
+type Settings = { show_warning: boolean; show_flag: boolean; flag_cutoff_minutes: number; flag_perfect_threshold: number };
+const DEFAULT_SETTINGS: Settings = { show_warning: true, show_flag: true, flag_cutoff_minutes: 500, flag_perfect_threshold: 2 };
 const CUTOFF_MIN = 8 * 60 + 20; // 08:20 local
 
 function Dashboard() {
