@@ -139,8 +139,8 @@ function Dashboard() {
       const rows = byKey[k];
       const complete = rows.filter((r) => r.late_count != null && r.action !== "delete");
       if (complete.length === 0) continue;
-      const anyEarly = complete.some((r) => minsOfDay(r.changed_at) < CUTOFF_MIN);
-      const anyAfter = rows.some((r) => r.action !== "delete" && minsOfDay(r.changed_at) >= CUTOFF_MIN);
+      const anyEarly = complete.some((r) => minsOfDay(r.changed_at) < settings.flag_cutoff_minutes);
+      const anyAfter = rows.some((r) => r.action !== "delete" && minsOfDay(r.changed_at) >= settings.flag_cutoff_minutes);
       if (anyEarly && !anyAfter) {
         const [cid, date] = k.split("|");
         (out[cid] ||= new Set()).add(date);
