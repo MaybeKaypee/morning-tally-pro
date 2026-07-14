@@ -307,7 +307,7 @@ function Dashboard() {
                   <td className="px-4 py-3 font-medium">
                     <div className="flex items-center gap-2">
                       <span>{r.name}</span>
-                      {r.missing.length > 0 && (
+                      {settings.show_warning && range === "week" && r.missing.length > 0 && (
                         <button
                           type="button"
                           onClick={() => setMissingInfo({ name: r.name, dates: r.missing })}
