@@ -68,18 +68,21 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [missingInfo, setMissingInfo] = useState<{ name: string; dates: string[] } | null>(null);
   const [flagInfo, setFlagInfo] = useState<{ name: string; earlyDates: string[]; perfectDates: string[] } | null>(null);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [cr, ar, hr] = await Promise.all([
+      const [cr, ar, hr, sr] = await Promise.all([
         supabase.from("classrooms").select("id, classroom_name, active"),
         supabase.from("attendance").select("classroom_id, attendance_date, on_time_count, late_count"),
         supabase.from("attendance_history").select("classroom_id, attendance_date, on_time_count, late_count, action, changed_at").limit(5000),
+        supabase.from("dashboard_settings" as never).select("show_warning, show_flag, flag_cutoff_minutes, flag_perfect_threshold").maybeSingle(),
       ]);
       setClassrooms(cr.data ?? []);
       setRecords((ar.data ?? []) as Attendance[]);
       setHistory((hr.data ?? []) as HistoryRow[]);
+      if (sr.data) setSettings(sr.data as Settings);
       setLoading(false);
     })();
   }, []);
