@@ -189,7 +189,7 @@ function Dashboard() {
         const displayOnTime = complete ? onTime : (dayRecord?.on_time_count ?? 0);
         const earlyDates = Array.from(earlySubmitByClass[c.id] ?? []).sort();
         const perfectDates = Array.from(b?.perfectDates ?? []).sort();
-        const flag = earlyDates.length > 0 || perfectDates.length >= 2;
+        const flag = range === "week" && settings.show_flag && (earlyDates.length > 0 || perfectDates.length >= settings.flag_perfect_threshold);
         return {
           id: c.id, name: c.classroom_name,
           onTime: displayOnTime, late, total, pct,
