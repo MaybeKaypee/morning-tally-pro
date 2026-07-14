@@ -147,7 +147,7 @@ function Dashboard() {
       }
     }
     return out;
-  }, [history, from, to]);
+  }, [history, from, to, settings.flag_cutoff_minutes]);
 
   const rows = useMemo(() => {
     const byClass: Record<string, {
