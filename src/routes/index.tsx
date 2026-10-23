@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { classroomCompare } from "@/lib/sort";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { CountInput } from "@/components/CountInput";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -222,19 +223,11 @@ function AttendanceForm() {
         </div>
 
         <Field label="Students at 07:45">
-          <input
-            type="number" min={0} step={1} inputMode="numeric"
-            value={onTime} onChange={(e) => setOnTime(e.target.value)}
-            className="h-12 w-full rounded-xl border bg-background px-3 text-base outline-none focus:ring-2 focus:ring-primary"
-          />
+          <CountInput value={onTime} onChange={setOnTime} />
         </Field>
 
         <Field label="Students at 08:20">
-          <input
-            type="number" min={0} step={1} inputMode="numeric"
-            value={total} onChange={(e) => setTotal(e.target.value)}
-            className="h-12 w-full rounded-xl border bg-background px-3 text-base outline-none focus:ring-2 focus:ring-primary"
-          />
+          <CountInput value={total} onChange={setTotal} />
         </Field>
 
         <button
