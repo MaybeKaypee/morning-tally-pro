@@ -12,6 +12,10 @@ export const Route = createFileRoute("/")({
     meta: [
       { title: "Submit Attendance — Morning Attendance" },
       { name: "description", content: "Submit today's morning attendance for your classroom." },
+      { property: "og:title", content: "Submit Attendance — Morning Attendance" },
+      { property: "og:description", content: "Submit today's morning attendance for your classroom." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AttendanceForm,
