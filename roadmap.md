@@ -1,3 +1,3 @@
 - [x] Inspect and store uploaded ONNX model.
 - [x] Replace paid photo counting on both fields with browser inference.
-- [ ] Verify detection rules and the real photo upload flow.
+- [x] Verify detection rules and the real photo upload flow (five sample marks counted as five).
