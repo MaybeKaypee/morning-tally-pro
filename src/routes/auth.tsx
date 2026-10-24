@@ -5,7 +5,14 @@ import { Loader2, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/auth")({
-  head: () => ({ meta: [{ title: "Admin Sign In — Morning Attendance" }] }),
+  head: () => ({ meta: [
+    { title: "Admin Sign In — Morning Attendance" },
+    { name: "description", content: "School administrator sign-in for Morning Attendance." },
+    { property: "og:title", content: "Admin Sign In — Morning Attendance" },
+    { property: "og:description", content: "School administrator sign-in for Morning Attendance." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ] }),
   component: AuthPage,
 });
 

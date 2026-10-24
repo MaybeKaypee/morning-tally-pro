@@ -13,6 +13,10 @@ export const Route = createFileRoute("/dashboard")({
     meta: [
       { title: "Dashboard — Morning Attendance" },
       { name: "description", content: "Classroom on-time leaderboard and attendance statistics." },
+      { property: "og:title", content: "Dashboard — Morning Attendance" },
+      { property: "og:description", content: "Classroom on-time leaderboard and attendance statistics." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Dashboard,

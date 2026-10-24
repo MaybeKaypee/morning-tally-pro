@@ -8,7 +8,14 @@ import { formatShortDate } from "@/lib/date-format";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export const Route = createFileRoute("/admin")({
-  head: () => ({ meta: [{ title: "Admin — Morning Attendance" }] }),
+  head: () => ({ meta: [
+    { title: "Admin — Morning Attendance" },
+    { name: "description", content: "Manage school classrooms, attendance responses and history." },
+    { property: "og:title", content: "Admin — Morning Attendance" },
+    { property: "og:description", content: "Manage school classrooms, attendance responses and history." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ] }),
   component: AdminPage,
 });
 
