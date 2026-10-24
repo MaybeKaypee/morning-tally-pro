@@ -1,10 +1,13 @@
 import modelAsset from "@/assets/best_int8.onnx.asset.json";
 import wasmAsset from "@/assets/ort-wasm-simd-threaded.wasm.asset.json";
 import loaderAsset from "@/assets/ort-wasm-simd-threaded.mjs.asset.json";
-import { countPresentDetections } from "./check-detections";
+import { countPresentDetections, detectPresentBoxes } from "./check-detections";
 import type { InferenceSession } from "onnxruntime-web";
 
 let sessionPromise: Promise<InferenceSession> | undefined;
+
+export type PhotoBox = { x: number; y: number; w: number; h: number; score: number };
+export type CountResult = { count: number; boxes: PhotoBox[] };
 
 async function getSession() {
   if (!sessionPromise) {
@@ -22,7 +25,7 @@ async function getSession() {
   return sessionPromise;
 }
 
-export async function countPhotoWithModel(file: File): Promise<number> {
+export async function countPhotoWithModel(file: File): Promise<CountResult> {
   const url = URL.createObjectURL(file);
   try {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -43,7 +46,9 @@ export async function countPhotoWithModel(file: File): Promise<number> {
     const scale = Math.min(size / image.width, size / image.height);
     const width = Math.round(image.width * scale);
     const height = Math.round(image.height * scale);
-    context.drawImage(image, Math.round((size - width) / 2), Math.round((size - height) / 2), width, height);
+    const padX = Math.round((size - width) / 2);
+    const padY = Math.round((size - height) / 2);
+    context.drawImage(image, padX, padY, width, height);
     const pixels = context.getImageData(0, 0, size, size).data;
     const area = size * size;
     const input = new Float32Array(3 * area);
@@ -60,7 +65,17 @@ export async function countPhotoWithModel(file: File): Promise<number> {
       try {
         const output = outputs.output0;
         if (!output || output.dims[1] !== 6 || !(output.data instanceof Float32Array)) throw new Error("Unexpected model output.");
-        return countPresentDetections(output.data, output.dims[2]);
+        const columns = output.dims[2];
+        const detected = detectPresentBoxes(output.data, columns);
+        // Map the letterboxed 640-space boxes back onto the original photo (normalized 0-1).
+        const boxes: PhotoBox[] = detected.map((box) => {
+          const x = Math.max(0, (box.x * size - padX) / scale);
+          const y = Math.max(0, (box.y * size - padY) / scale);
+          const w = Math.min(image.width - x, (box.w * size) / scale);
+          const h = Math.min(image.height - y, (box.h * size) / scale);
+          return { x: x / image.width, y: y / image.height, w: w / image.width, h: h / image.height, score: box.score };
+        });
+        return { count: countPresentDetections(output.data, columns), boxes };
       } finally {
         Object.values(outputs).forEach((output) => output.dispose());
       }
