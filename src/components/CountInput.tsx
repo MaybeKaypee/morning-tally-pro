@@ -3,14 +3,17 @@ import { Camera, Loader2, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PhotoReview } from "@/components/PhotoReview";
+import { PhotoSourceDialog } from "@/components/PhotoSourceDialog";
 import type { CountResult } from "@/lib/count-checks-model";
 
 const btn =
   "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-background text-foreground transition hover:bg-accent disabled:opacity-50";
 
 export function CountInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [review, setReview] = useState<{ imageUrl: string; result: CountResult } | null>(null);
 
   const step = (d: number) => {
@@ -55,14 +58,21 @@ export function CountInput({ value, onChange }: { value: string; onChange: (v: s
           <Plus className="h-5 w-5" />
         </Button>
         <Button
-          type="button" size="icon" aria-label="Take photo to count" title={busy ? "Counting photo…" : "Take photo to count"} disabled={busy}
-          onClick={() => fileRef.current?.click()}
+          type="button" size="icon" aria-label="Add photo to count" title={busy ? "Counting photo…" : "Add photo to count"} disabled={busy}
+          onClick={() => setSourceOpen(true)}
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
         >
           {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
         </Button>
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
+        <input ref={galleryRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
       </div>
+      <PhotoSourceDialog
+        open={sourceOpen}
+        onCamera={() => { setSourceOpen(false); cameraRef.current?.click(); }}
+        onGallery={() => { setSourceOpen(false); galleryRef.current?.click(); }}
+        onCancel={() => setSourceOpen(false)}
+      />
       {review && (
         <PhotoReview
           imageUrl={review.imageUrl}
