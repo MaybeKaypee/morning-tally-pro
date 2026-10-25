@@ -203,16 +203,12 @@ export function PhotoReview({
             }}
           >
             <img
-              ref={imgRef}
               src={imageUrl}
               alt="Taken attendance sheet"
               draggable={false}
               className="block h-full w-full border"
-              onLoad={(e) => {
-                const img = e.currentTarget;
-                if (img.naturalWidth) setNatural({ w: img.naturalWidth, h: img.naturalHeight });
-              }}
             />
+
             {boxes.map((box, i) => (
               <div
                 key={i}
