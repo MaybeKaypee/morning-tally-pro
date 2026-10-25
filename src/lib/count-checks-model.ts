@@ -69,10 +69,10 @@ export async function countPhotoWithModel(file: File): Promise<CountResult> {
         const detected = detectPresentBoxes(output.data, columns);
         // Map the letterboxed 640-space boxes back onto the original photo (normalized 0-1).
         const boxes: PhotoBox[] = detected.map((box) => {
-          const x = Math.max(0, (box.x * size - padX) / scale);
-          const y = Math.max(0, (box.y * size - padY) / scale);
-          const w = Math.min(image.width - x, (box.w * size) / scale);
-          const h = Math.min(image.height - y, (box.h * size) / scale);
+          const x = Math.max(0, (box.x - padX) / scale);
+          const y = Math.max(0, (box.y - padY) / scale);
+          const w = Math.min(image.width - x, box.w / scale);
+          const h = Math.min(image.height - y, box.h / scale);
           return { x: x / image.width, y: y / image.height, w: w / image.width, h: h / image.height, score: box.score };
         });
         return { count: countPresentDetections(output.data, columns), boxes };
