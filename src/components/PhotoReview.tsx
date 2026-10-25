@@ -40,7 +40,6 @@ export function PhotoReview({
 }) {
   const [count, setCount] = useState(initialCount);
   const containerRef = useRef<HTMLDivElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [frame, setFrame] = useState<{ cw: number; ch: number } | null>(null);
   const [view, setView] = useState<View>({ zoom: 1, x: 0, y: 0 });
@@ -58,12 +57,24 @@ export function PhotoReview({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const read = () => setFrame({ cw: el.clientWidth, ch: el.clientHeight });
+    const read = () => {
+      const next = { cw: el.clientWidth, ch: el.clientHeight };
+      setFrame((cur) => (cur && cur.cw === next.cw && cur.ch === next.ch ? cur : next));
+    };
     read();
     const ro = new ResizeObserver(read);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Measure the photo off-screen so the on-screen <img> only mounts once its fit size is known.
+  useEffect(() => {
+    const probe = new Image();
+    probe.onload = () => setNatural({ w: probe.naturalWidth, h: probe.naturalHeight });
+    probe.src = imageUrl;
+    return () => { probe.onload = null; };
+  }, [imageUrl]);
+
 
   // Reset to a centred fit whenever the photo or the frame size changes.
   useEffect(() => {
