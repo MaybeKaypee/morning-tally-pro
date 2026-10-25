@@ -111,7 +111,7 @@ export function PhotoReview({
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     const p = local(e);
     active.current.set(e.pointerId, p);
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer already released */ }
     if (active.current.size === 2) {
       const [a, b] = [...active.current.values()];
       pinchStart.current = { dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), zoom: viewRef.current.zoom };
