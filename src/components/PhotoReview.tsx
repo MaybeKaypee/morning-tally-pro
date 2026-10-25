@@ -109,7 +109,10 @@ export function PhotoReview({
   const lastSingle = useRef<{ x: number; y: number } | null>(null);
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    // Capturing the pointer here would retarget the click, so leave control taps alone.
+    if ((e.target as HTMLElement).closest("button")) return;
     const p = local(e);
+
     active.current.set(e.pointerId, p);
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer already released */ }
     if (active.current.size === 2) {
