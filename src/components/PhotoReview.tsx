@@ -1,9 +1,29 @@
-import { useState } from "react";
-import { ArrowLeft, Minus, Plus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Maximize, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const btn =
   "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-background text-foreground transition hover:bg-accent";
+
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 8;
+
+type View = { zoom: number; x: number; y: number };
+type Geom = { cw: number; ch: number; bw: number; bh: number };
+
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+
+/** Keep the photo inside the frame: no blank gap on the side that has content. */
+function clampView(v: View, g: Geom | null): View {
+  if (!g) return v;
+  const sw = g.bw * v.zoom;
+  const sh = g.bh * v.zoom;
+  return {
+    zoom: v.zoom,
+    x: clamp(v.x, Math.min(0, g.cw - sw), Math.max(0, g.cw - sw)),
+    y: clamp(v.y, Math.min(0, g.ch - sh), Math.max(0, g.ch - sh)),
+  };
+}
 
 export function PhotoReview({
   imageUrl,
@@ -19,6 +39,119 @@ export function PhotoReview({
   onConfirm: (count: number) => void;
 }) {
   const [count, setCount] = useState(initialCount);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  const [frame, setFrame] = useState<{ cw: number; ch: number } | null>(null);
+  const [view, setView] = useState<View>({ zoom: 1, x: 0, y: 0 });
+  const geomRef = useRef<Geom | null>(null);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
+  // The photo is laid out at "fit" size; zoom is applied as a transform on top.
+  const base = useMemo(() => {
+    if (!natural || !frame) return null;
+    const scale = Math.min(frame.cw / natural.w, frame.ch / natural.h, 1);
+    return { bw: Math.max(1, Math.round(natural.w * scale)), bh: Math.max(1, Math.round(natural.h * scale)) };
+  }, [natural, frame]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const read = () => setFrame({ cw: el.clientWidth, ch: el.clientHeight });
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Reset to a centred fit whenever the photo or the frame size changes.
+  useEffect(() => {
+    if (!base || !frame) return;
+    geomRef.current = { ...frame, ...base };
+    setView({ zoom: 1, x: (frame.cw - base.bw) / 2, y: (frame.ch - base.bh) / 2 });
+  }, [base, frame]);
+
+  function fitView(): View {
+    const g = geomRef.current;
+    if (!g) return { zoom: 1, x: 0, y: 0 };
+    return { zoom: 1, x: (g.cw - g.bw) / 2, y: (g.ch - g.bh) / 2 };
+  }
+
+  /** Scale to `next` while keeping the point (px, py) of the photo under the finger/cursor. */
+  function zoomTo(px: number, py: number, next: number) {
+    setView((v) => {
+      const target = clamp(next, MIN_ZOOM, MAX_ZOOM);
+      if (target === v.zoom) return v;
+      const k = target / v.zoom;
+      return clampView({ zoom: target, x: px - (px - v.x) * k, y: py - (py - v.y) * k }, geomRef.current);
+    });
+  }
+
+  const local = (e: { clientX: number; clientY: number }) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    return { x: rect ? e.clientX - rect.left : 0, y: rect ? e.clientY - rect.top : 0 };
+  };
+
+  const active = useRef(new Map<number, { x: number; y: number }>());
+  const pinchStart = useRef<{ dist: number; zoom: number } | null>(null);
+  const lastSingle = useRef<{ x: number; y: number } | null>(null);
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const p = local(e);
+    active.current.set(e.pointerId, p);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    if (active.current.size === 2) {
+      const [a, b] = [...active.current.values()];
+      pinchStart.current = { dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), zoom: viewRef.current.zoom };
+      lastSingle.current = null;
+    } else {
+      lastSingle.current = p;
+    }
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!active.current.has(e.pointerId)) return;
+    const p = local(e);
+    active.current.set(e.pointerId, p);
+    if (active.current.size >= 2) {
+      const [a, b] = [...active.current.values()];
+      const dist = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      const start = (pinchStart.current ??= { dist, zoom: viewRef.current.zoom });
+      zoomTo((a.x + b.x) / 2, (a.y + b.y) / 2, start.zoom * (dist / start.dist));
+    } else if (lastSingle.current) {
+      const dx = p.x - lastSingle.current.x;
+      const dy = p.y - lastSingle.current.y;
+      lastSingle.current = p;
+      if (dx || dy) setView((v) => clampView({ ...v, x: v.x + dx, y: v.y + dy }, geomRef.current));
+    }
+  }
+
+  function onPointerEnd(e: React.PointerEvent<HTMLDivElement>) {
+    active.current.delete(e.pointerId);
+    if (active.current.size < 2) pinchStart.current = null;
+    lastSingle.current = active.current.size === 1 ? [...active.current.values()][0] : null;
+  }
+
+  // Wheel / trackpad pinch: native listener so preventDefault actually works.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1);
+      const rect = el.getBoundingClientRect();
+      zoomTo(e.clientX - rect.left, e.clientY - rect.top, viewRef.current.zoom * Math.exp(-dy * 0.0015));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  function zoomCentre(factor: number) {
+    const g = geomRef.current;
+    if (!g) return;
+    zoomTo(g.cw / 2, g.ch / 2, viewRef.current.zoom * factor);
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
@@ -34,25 +167,95 @@ export function PhotoReview({
         </div>
       </header>
 
-      <div className="flex flex-1 items-center justify-center overflow-auto p-4">
-        <div className="relative inline-block">
-          <img
-            src={imageUrl}
-            alt="Taken attendance sheet"
-            className="block max-h-[55vh] max-w-full rounded-xl border"
-          />
-          {boxes.map((box, i) => (
-            <div
-              key={i}
-              className="pointer-events-none absolute rounded border-2 border-primary bg-primary/10"
-              style={{
-                left: `${box.x * 100}%`,
-                top: `${box.y * 100}%`,
-                width: `${box.w * 100}%`,
-                height: `${box.h * 100}%`,
+      <div
+        ref={containerRef}
+        className="relative flex-1 touch-none select-none overflow-hidden bg-muted/20"
+        style={{ cursor: view.zoom > 1.01 ? "grab" : "default" }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+        onDoubleClick={(e) => {
+          const p = local(e);
+          if (viewRef.current.zoom > 1.05) setView(fitView());
+          else zoomTo(p.x, p.y, 2.5);
+        }}
+      >
+        {base && (
+          <div
+            className="absolute left-0 top-0 origin-top-left"
+            style={{
+              width: base.bw,
+              height: base.bh,
+              transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.zoom})`,
+              willChange: "transform",
+            }}
+          >
+            <img
+              ref={imgRef}
+              src={imageUrl}
+              alt="Taken attendance sheet"
+              draggable={false}
+              className="block h-full w-full border"
+              onLoad={(e) => {
+                const img = e.currentTarget;
+                if (img.naturalWidth) setNatural({ w: img.naturalWidth, h: img.naturalHeight });
               }}
             />
-          ))}
+            {boxes.map((box, i) => (
+              <div
+                key={i}
+                className="pointer-events-none absolute rounded border-primary bg-primary/10"
+                style={{
+                  left: `${box.x * 100}%`,
+                  top: `${box.y * 100}%`,
+                  width: `${box.w * 100}%`,
+                  height: `${box.h * 100}%`,
+                  borderWidth: `${2 / view.zoom}px`,
+                  borderStyle: "solid",
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-card/95 px-2 py-1 shadow-sm backdrop-blur">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Zoom out"
+            title="Zoom out"
+            className="h-8 w-8 rounded-full"
+            onClick={() => zoomCentre(1 / 1.4)}
+          >
+            <Minus className="h-4 w-4" />
+          </Button>
+          <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">
+            {Math.round(view.zoom * 100)}%
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Zoom in"
+            title="Zoom in"
+            className="h-8 w-8 rounded-full"
+            onClick={() => zoomCentre(1.4)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Fit photo"
+            title="Fit photo"
+            className="h-8 w-8 rounded-full"
+            onClick={() => setView(fitView())}
+          >
+            <Maximize className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
