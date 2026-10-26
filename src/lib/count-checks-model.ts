@@ -3,11 +3,12 @@ import wasmAsset from "@/assets/ort-wasm-simd-threaded.wasm.asset.json";
 import loaderAsset from "@/assets/ort-wasm-simd-threaded.mjs.asset.json";
 import { countPresentDetections, detectPresentBoxes } from "./check-detections";
 import type { InferenceSession } from "onnxruntime-web";
+import { modelPhotoCanvas, preparePhoto } from "./prepare-photo";
 
 let sessionPromise: Promise<InferenceSession> | undefined;
 
 export type PhotoBox = { x: number; y: number; w: number; h: number; score: number };
-export type CountResult = { count: number; boxes: PhotoBox[] };
+export type CountResult = { count: number; boxes: PhotoBox[]; photo: Blob };
 
 async function getSession() {
   if (!sessionPromise) {
@@ -26,29 +27,9 @@ async function getSession() {
 }
 
 export async function countPhotoWithModel(file: File): Promise<CountResult> {
-  const url = URL.createObjectURL(file);
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("Could not open this photo. Try a JPG or PNG."));
-      img.src = url;
-    });
+    const { canvas: image, photo } = await preparePhoto(file);
     const size = 640;
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Photo processing is unavailable on this browser.");
-    // Ultralytics letterboxing uses neutral 114 padding and RGB / 255.
-    context.fillStyle = "rgb(114, 114, 114)";
-    context.fillRect(0, 0, size, size);
-    const scale = Math.min(size / image.width, size / image.height);
-    const width = Math.round(image.width * scale);
-    const height = Math.round(image.height * scale);
-    const padX = Math.round((size - width) / 2);
-    const padY = Math.round((size - height) / 2);
-    context.drawImage(image, padX, padY, width, height);
+    const { context, scale, padX, padY } = modelPhotoCanvas(image, size);
     const pixels = context.getImageData(0, 0, size, size).data;
     const area = size * size;
     const input = new Float32Array(3 * area);
@@ -75,14 +56,11 @@ export async function countPhotoWithModel(file: File): Promise<CountResult> {
           const h = Math.min(image.height - y, box.h / scale);
           return { x: x / image.width, y: y / image.height, w: w / image.width, h: h / image.height, score: box.score };
         });
-        return { count: countPresentDetections(output.data, columns), boxes };
+        return { count: countPresentDetections(output.data, columns), boxes, photo };
       } finally {
         Object.values(outputs).forEach((output) => output.dispose());
       }
     } finally {
       tensor.dispose();
     }
-  } finally {
-    URL.revokeObjectURL(url);
-  }
 }
