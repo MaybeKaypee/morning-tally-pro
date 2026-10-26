@@ -1,5 +1,5 @@
 - [x] Inspect and store uploaded ONNX model.
 - [x] Replace paid photo counting on both fields with browser inference.
 - [x] Verify detection rules and the real photo upload flow (five sample marks counted as five).
-- [ ] Normalize camera photo orientation and resizing for phone counting.
-- [ ] Verify normal, large, and EXIF-rotated photos through both photo inputs.
+- [x] Normalize camera photo orientation and resizing for phone counting.
+- [x] Verify normal, large, and EXIF-rotated photos through both photo inputs (desktop and mobile Chromium simulation; physical phone remains unverified).
