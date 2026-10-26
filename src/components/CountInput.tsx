@@ -29,7 +29,7 @@ export function CountInput({ value, onChange }: { value: string; onChange: (v: s
     try {
       const { countPhotoWithModel } = await import("@/lib/count-checks-model");
       const result = await countPhotoWithModel(file);
-      setReview({ imageUrl: URL.createObjectURL(file), result });
+      setReview({ imageUrl: URL.createObjectURL(result.photo), result });
     } catch (err: unknown) {
       console.error("Photo model failed", err);
       toast.error("Could not count the photo. Try again or enter the number manually.");
