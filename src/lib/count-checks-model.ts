@@ -1,4 +1,4 @@
-import modelAsset from "@/assets/best_int8.onnx.asset.json";
+import modelAsset from "@/assets/best_fp16_mixed.onnx.asset.json";
 import wasmAsset from "@/assets/ort-wasm-simd-threaded.wasm.asset.json";
 import loaderAsset from "@/assets/ort-wasm-simd-threaded.mjs.asset.json";
 import { countPresentDetections, detectPresentBoxes } from "./check-detections";

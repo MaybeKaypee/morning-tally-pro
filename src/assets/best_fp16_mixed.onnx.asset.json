@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "asset_id": "e9219800-6ce6-42c0-930f-ede6b0c8244f",
+  "project_id": "509a3a95-30bf-417e-8558-0d51d138a892",
+  "url": "/__l5e/assets-v1/e9219800-6ce6-42c0-930f-ede6b0c8244f/best_fp16_mixed.onnx",
+  "r2_key": "a/v1/509a3a95-30bf-417e-8558-0d51d138a892/e9219800-6ce6-42c0-930f-ede6b0c8244f/best_fp16_mixed.onnx",
+  "original_filename": "best_fp16_mixed.onnx",
+  "size": 19943070,
+  "content_type": "application/octet-stream",
+  "created_at": "2026-11-02T14:34:49Z"
+}
