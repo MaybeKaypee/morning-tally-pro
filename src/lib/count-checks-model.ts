@@ -10,6 +10,14 @@ let sessionPromise: Promise<InferenceSession> | undefined;
 export type PhotoBox = { x: number; y: number; w: number; h: number; score: number };
 export type CountResult = { count: number; boxes: PhotoBox[]; photo: Blob };
 
+// Lovable serves /__l5e/ assets on its own domains; other hosts (e.g. Vercel) must load them from the Lovable CDN.
+const ASSET_HOST = "https://morning-tally-pro.lovable.app";
+function assetUrl(path: string) {
+  const host = window.location.hostname;
+  const lovable = host === "localhost" || host.endsWith(".lovable.app") || host.endsWith(".lovableproject.com");
+  return new URL(path, lovable ? window.location.origin : ASSET_HOST).href;
+}
+
 async function getSession() {
   if (!sessionPromise) {
     sessionPromise = (async () => {
@@ -17,10 +25,10 @@ async function getSession() {
       ort.env.wasm.numThreads = 1;
       ort.env.wasm.proxy = false;
       ort.env.wasm.wasmPaths = {
-        wasm: new URL(wasmAsset.url, window.location.origin).href,
-        mjs: new URL(loaderAsset.url, window.location.origin).href,
+        wasm: assetUrl(wasmAsset.url),
+        mjs: assetUrl(loaderAsset.url),
       };
-      return ort.InferenceSession.create(modelAsset.url, { executionProviders: ["wasm"] });
+      return ort.InferenceSession.create(assetUrl(modelAsset.url), { executionProviders: ["wasm"] });
     })().catch((error) => { sessionPromise = undefined; throw error; });
   }
   return sessionPromise;

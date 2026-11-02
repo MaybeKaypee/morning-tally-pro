@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/__l5e/:path*", "destination": "https://morning-tally-pro.lovable.app/__l5e/:path*" }
+  ]
+}
