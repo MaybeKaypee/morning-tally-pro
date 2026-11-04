@@ -3,4 +3,4 @@
 - [x] Verify detection rules and the real photo upload flow (five sample marks counted as five).
 - [x] Normalize camera photo orientation and resizing for phone counting.
 - [x] Verify normal, large, and EXIF-rotated photos through both photo inputs (desktop and mobile Chromium simulation; physical phone remains unverified).
-- [ ] Move photo zoom controls to the side and verify tap-based circle corrections on desktop and mobile.
+- [x] Move photo zoom controls to the side and verify tap-based circle corrections on desktop and mobile Chromium simulation.
