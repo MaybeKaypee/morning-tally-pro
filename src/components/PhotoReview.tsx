@@ -113,8 +113,10 @@ export function PhotoReview({
   const pinchStart = useRef<{ dist: number; zoom: number } | null>(null);
   const lastSingle = useRef<{ x: number; y: number } | null>(null);
   const tapStart = useRef<{ x: number; y: number } | null>(null);
+  const suppressTapClick = useRef(false);
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    suppressTapClick.current = false;
     // Capturing the pointer here would retarget the click, so leave control taps alone.
     if ((e.target as HTMLElement).closest("button")) return;
     const p = local(e);
@@ -155,6 +157,7 @@ export function PhotoReview({
       const v = viewRef.current;
       const x = (p.x - v.x) / (base.bw * v.zoom);
       const y = (p.y - v.y) / (base.bh * v.zoom);
+      suppressTapClick.current = true;
       setReview((current) => addMark(current, x, y, diameter / natural.w, diameter / natural.h));
     }
     tapStart.current = null;
@@ -205,6 +208,13 @@ export function PhotoReview({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}
         onPointerCancel={onPointerEnd}
+        onClickCapture={(e) => {
+          // Mobile may send the follow-up click to the circle just created by pointerup.
+          if (!suppressTapClick.current) return;
+          suppressTapClick.current = false;
+          e.preventDefault();
+          e.stopPropagation();
+        }}
       >
         {base && (
           <div
