@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Maximize, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { addMark, markDiameter, removeMark } from "@/lib/photo-review-marks";
 
 const btn =
   "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-background text-foreground transition hover:bg-accent";
@@ -38,7 +39,9 @@ export function PhotoReview({
   onCancel: () => void;
   onConfirm: (count: number) => void;
 }) {
-  const [count, setCount] = useState(initialCount);
+  const [review, setReview] = useState(() => ({ count: initialCount, marks: boxes }));
+  const { count, marks } = review;
+  const setCount = (update: (count: number) => number) => setReview((current) => ({ ...current, count: update(current.count) }));
   const containerRef = useRef<HTMLDivElement>(null);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [frame, setFrame] = useState<{ cw: number; ch: number } | null>(null);
@@ -53,6 +56,8 @@ export function PhotoReview({
     const scale = Math.min(frame.cw / natural.w, frame.ch / natural.h, 1);
     return { bw: Math.max(1, Math.round(natural.w * scale)), bh: Math.max(1, Math.round(natural.h * scale)) };
   }, [natural, frame]);
+
+  const diameter = useMemo(() => natural ? markDiameter(boxes, natural.w, natural.h) : 0, [boxes, natural]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -107,6 +112,7 @@ export function PhotoReview({
   const active = useRef(new Map<number, { x: number; y: number }>());
   const pinchStart = useRef<{ dist: number; zoom: number } | null>(null);
   const lastSingle = useRef<{ x: number; y: number } | null>(null);
+  const tapStart = useRef<{ x: number; y: number } | null>(null);
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     // Capturing the pointer here would retarget the click, so leave control taps alone.
@@ -114,6 +120,7 @@ export function PhotoReview({
     const p = local(e);
 
     active.current.set(e.pointerId, p);
+    tapStart.current = active.current.size === 1 ? p : null;
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* pointer already released */ }
     if (active.current.size === 2) {
       const [a, b] = [...active.current.values()];
@@ -127,6 +134,7 @@ export function PhotoReview({
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
     if (!active.current.has(e.pointerId)) return;
     const p = local(e);
+    if (tapStart.current && Math.hypot(p.x - tapStart.current.x, p.y - tapStart.current.y) > 6) tapStart.current = null;
     active.current.set(e.pointerId, p);
     if (active.current.size >= 2) {
       const [a, b] = [...active.current.values()];
@@ -142,6 +150,14 @@ export function PhotoReview({
   }
 
   function onPointerEnd(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.type === "pointerup" && active.current.size === 1 && tapStart.current && base && natural) {
+      const p = local(e);
+      const v = viewRef.current;
+      const x = (p.x - v.x) / (base.bw * v.zoom);
+      const y = (p.y - v.y) / (base.bh * v.zoom);
+      setReview((current) => addMark(current, x, y, diameter / natural.w, diameter / natural.h));
+    }
+    tapStart.current = null;
     active.current.delete(e.pointerId);
     if (active.current.size < 2) pinchStart.current = null;
     lastSingle.current = active.current.size === 1 ? [...active.current.values()][0] : null;
@@ -176,7 +192,7 @@ export function PhotoReview({
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-foreground">Review photo</h2>
           <p className="text-xs text-muted-foreground">
-            {boxes.length} check mark{boxes.length === 1 ? "" : "s"} detected
+            {marks.length} check mark{marks.length === 1 ? "" : "s"} marked
           </p>
         </div>
       </header>
@@ -189,11 +205,6 @@ export function PhotoReview({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}
         onPointerCancel={onPointerEnd}
-        onDoubleClick={(e) => {
-          const p = local(e);
-          if (viewRef.current.zoom > 1.05) setView(fitView());
-          else zoomTo(p.x, p.y, 2.5);
-        }}
       >
         {base && (
           <div
@@ -212,15 +223,21 @@ export function PhotoReview({
               className="block h-full w-full border"
             />
 
-            {boxes.map((box, i) => (
-              <div
+            {natural && marks.map((box, i) => (
+              <Button
                 key={i}
-                className="pointer-events-none absolute rounded border-primary bg-primary/10"
+                type="button"
+                variant="ghost"
+                aria-label={`Remove check mark ${i + 1}`}
+                title="Remove check mark"
+                onClick={() => setReview((current) => removeMark(current, i))}
+                className="absolute min-h-0 min-w-0 rounded-full border-primary bg-primary/20 p-0 hover:bg-primary/40"
                 style={{
-                  left: `${box.x * 100}%`,
-                  top: `${box.y * 100}%`,
-                  width: `${box.w * 100}%`,
-                  height: `${box.h * 100}%`,
+                  left: `${(box.x + box.w / 2) * 100}%`,
+                  top: `${(box.y + box.h / 2) * 100}%`,
+                  width: `${diameter / natural.w * 100}%`,
+                  height: `${diameter / natural.h * 100}%`,
+                  transform: "translate(-50%, -50%)",
                   borderWidth: `${2 / view.zoom}px`,
                   borderStyle: "solid",
                 }}
@@ -229,7 +246,7 @@ export function PhotoReview({
           </div>
         )}
 
-        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-card/95 px-2 py-1 shadow-sm backdrop-blur">
+        <div className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col items-center gap-1 rounded-full border bg-card/95 px-1 py-2 shadow-sm backdrop-blur">
           <Button
             type="button"
             variant="ghost"
